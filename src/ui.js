@@ -1,4 +1,4 @@
-/* Sokkelreise UI — state, Sodir client, chart engine, views. */
+/* Sokkelreiser UI — state, Sodir client, chart engine, views. */
 (function(){
 "use strict";
 const C=window.OK;
@@ -683,7 +683,7 @@ async function handleFile(file){
     const name=file.name||"fil";
     if(/\.json$/i.test(name)){
       const j=JSON.parse(await file.text());
-      if(j.app!=="sokkelreise"&&j.app!=="offshorekart")throw new Error("JSON-filen er ikke en prosjektfil fra Sokkelreise.");
+      if(!["sokkelreiser","sokkelreise","offshorekart"].includes(j.app))throw new Error("JSON-filen er ikke en prosjektfil fra Sokkelreiser.");
       S.legs=j.legs||[];S.places=j.places||{};S.manual=j.manual||[];S.overrides=j.overrides||{};S.sourceName=j.sourceName||name;
       persist();toast("Prosjektfilen er lastet inn.");await recompute();fitToContent();return;
     }
@@ -799,9 +799,9 @@ document.addEventListener("click",async e=>{
   else if(act==="rigtab")switchTab("rig");
   else if(act==="placestab")switchTab("places");
   else if(act==="allyears"){S.ui.year=null;renderStays();updateMap();fitToContent()}
-  else if(act==="csv")download("sokkelreise-opphold.csv","﻿"+C.toCSV(stayTable()),"text/csv;charset=utf-8");
+  else if(act==="csv")download("sokkelreiser-opphold.csv","﻿"+C.toCSV(stayTable()),"text/csv;charset=utf-8");
   else if(act==="copy")copyText(C.toCSV(stayTable(),"\t"));
-  else if(act==="save")download("sokkelreise-prosjekt.json",JSON.stringify({app:"sokkelreise",version:1,saved:new Date().toISOString(),sourceName:S.sourceName,legs:S.legs,places:S.places,manual:S.manual,overrides:S.overrides}),"application/json");
+  else if(act==="save")download("sokkelreiser-prosjekt.json",JSON.stringify({app:"sokkelreiser",version:1,saved:new Date().toISOString(),sourceName:S.sourceName,legs:S.legs,places:S.places,manual:S.manual,overrides:S.overrides}),"application/json");
   else if(act==="sodir"){const ok=await loadFacilities(true);if(ok){autoLink();persist();await recompute();toast("Sodir-data er oppdatert.")}else toast("Fikk ikke kontakt med Sodir.")}
   else if(act==="clear")confirmDialog("Slette alle data?","Reiseloggen, koblingene og lagret Sodir-data fjernes fra denne nettleseren. Lagre en prosjektfil først hvis du vil beholde arbeidet.","Slett alt",()=>{for(const k of store.keys())store.del(k);location.reload()});
   else if(act==="openrig")openRig(b.dataset.id,b.dataset.date);

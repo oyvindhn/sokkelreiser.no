@@ -1,4 +1,4 @@
-/* Sokkelreise core — pure logic (import, matching, stays, position lookup). No DOM. */
+/* Sokkelreiser core — pure logic (import, matching, stays, position lookup). No DOM. */
 (function(root){
 "use strict";
 const DAY=86400000;

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bygger Sokkelreise til én selvstendig index.html i public/.
+"""Bygger Sokkelreiser til én selvstendig index.html i public/.
 
     python3 build.py              -> public/ (klar for opplasting til ProISP)
     python3 build.py --artifact   -> build/artifact.html (forhåndsvisning uten <html>-skjelett)
@@ -22,7 +22,7 @@ def parts(favicon=True):
     base = json.loads((ROOT / "data" / "basemap.json").read_text(encoding="utf-8"))
     basemap = "window.BASEMAP=" + json.dumps(base, separators=(",", ":")) + ";"
     icon = '<link rel="icon" href="favicon.svg" type="image/svg+xml">\n' if favicon else ""
-    head = f"""<title>Sokkelreise</title>
+    head = f"""<title>Sokkelreiser</title>
 <meta name="description" content="Finn tilbake til hvor du har vært offshore. Reiselogg fra MinDaVinci, posisjoner fra Sodir. Alt skjer i nettleseren.">
 <meta name="theme-color" content="#0e1c26">
 {icon}<link rel="preconnect" href="https://fonts.googleapis.com">
