@@ -148,7 +148,7 @@ async function getWellbores(facId){
 async function timelineFor(facId){
   if(D.timelines.has(facId))return D.timelines.get(facId);
   const wbs=await getWellbores(facId);if(!wbs)return null;
-  const tl=C.rigTimeline(facId,wbs);D.timelines.set(facId,tl);return tl;
+  const tl=C.rigTimeline(facId,wbs,PROSPECTS);D.timelines.set(facId,tl);return tl;
 }
 function ingestSodirFile(kind,headers,body){
   const objs=C.rowsToObjects(headers,body);
@@ -271,7 +271,8 @@ function autoLink(){
 let NEIGH=new Map();
 /* Kodeliste: koder som tidligere er koblet (koder.json ligger ved siden av siden og kan utvides). */
 let CODES={};
-async function loadCodeList(){try{const r=await fetch("koder.json",{cache:"no-cache"});if(!r.ok)return;const j=await r.json();CODES=(j&&j.koder)||{}}catch(_){}}
+let PROSPECTS={};
+async function loadCodeList(){try{const r=await fetch("koder.json",{cache:"no-cache"});if(!r.ok)return;const j=await r.json();CODES=(j&&j.koder)||{};PROSPECTS=(j&&j.prospekter)||{};D.timelines.clear()}catch(_){}}
 /* «SKARV» i kodelisten skal treffe «SKARV FPSO» hos Sodir. Faste og i drift foretrekkes. */
 function looseName(navn){
   const n=C.normName(navn||"");if(!n)return null;

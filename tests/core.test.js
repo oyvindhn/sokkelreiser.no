@@ -222,3 +222,9 @@ test("datidens funnavn går foran dagens feltnavn", () => {
   assert.equal(C.rigTimeline("5", [w("25/2-18 S", "HUGIN")]).sites[0].name, "Huginfeltet – 25/2");
   assert.equal(C.rigTimeline("5", [w("25/2-18 S (LANGFJELLET)", "HUGIN SATELLITTER")]).sites[0].name, "Langfjellet – 25/2");
 });
+
+test("prospektnavn fra kodelisten går foran Sodirs feltnavn", () => {
+  const w = C.normWellbore({ wlbWellboreName: "25/2-18 ST2", wlbWell: "25/2-18", wlbEntryDate: Date.parse("2016-01-01"), wlbCompletionDate: Date.parse("2016-03-01"), wlbNsDecDeg: 59.8, wlbEwDecDeg: 2.6, wlbField: "HUGIN SATELLITTER", fclNpdidFacilityDrilling: 5 });
+  assert.equal(C.rigTimeline("5", [w], { "25/2-18 S": "Langfjellet" }).sites[0].name, "Langfjellet – 25/2");
+  assert.equal(C.rigTimeline("5", [w]).sites[0].name, "Hugin Satellitter-feltet – 25/2");
+});

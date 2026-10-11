@@ -3,5 +3,14 @@
   "version": 1,
   "koder": {
     "SKV": { "navn": "SKARV" }
+  },
+  "prospekter": {
+    "2/8-18 S": "Clapton",
+    "7/8-6 S": "Skagen",
+    "8/5-1": "Ogna",
+    "7/4-3": "Carlsberg",
+    "3/7-10 S": "Myrhauk",
+    "25/10-15 S": "Rovarkula",
+    "25/2-18 S": "Langfjellet"
   }
 }

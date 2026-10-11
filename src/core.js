@@ -412,7 +412,14 @@ function haversineKm(a,b){
   return 2*R*Math.asin(Math.sqrt(h));
 }
 /* Group a rig's wellbores into sites (≤1.5 km apart) and chronological visits. */
-function rigTimeline(facId,wellbores){
+/* prospects: {"25/2-18 S":"Langfjellet"} – navn brukt da brønnen ble boret (kodelisten). Gjelder også sidesteg (25/2-18 ST2). */
+function prospectOf(wells,prospects){
+  if(!prospects)return "";
+  const keys=Object.keys(prospects).map(k=>[normName(k),prospects[k]]);
+  for(const w of wells)for(const n of [w.name,w.well]){const m=normName(n||"");for(const [k,v] of keys)if(m===k||m.startsWith(k+" ")||m.startsWith(k+"T"))return v}
+  return "";
+}
+function rigTimeline(facId,wellbores,prospects){
   const wbs=wellbores.filter(w=>w.entry&&w.lat!=null).slice().sort((a,b)=>a.entry<b.entry?-1:a.entry>b.entry?1:0);
   const sites=[];
   for(const w of wbs){
@@ -429,7 +436,7 @@ function rigTimeline(facId,wellbores){
     // funnet brønnen ble boret på (datidens navn, f.eks. Langfjellet) går foran dagens felt (Hugin Satellitter)
     // Sodir: «25/2-18 S (LANGFJELLET)» -> Langfjellet. Bare et brønnummer gir ikke noe navn.
     const par=/\(([^)]+)\)/.exec(s.discovery||"");
-    const disc=par?par[1].trim():s.discovery&&!/^\d/.test(s.discovery)?s.discovery:"";
+    const disc=prospectOf(s.wells,prospects)||(par?par[1].trim():s.discovery&&!/^\d/.test(s.discovery)?s.discovery:"");
     const place=disc?(s.field&&normName(s.field)===normName(disc)?fieldWord(s.field):titleCase(disc)):s.field?fieldWord(s.field):"";
     s.place=place;
     s.name=place?(s.block&&!/\d+\/\d+/.test(place)?place+" – "+s.block:place):(s.block?"Blokk "+s.block:pl||s.well);
