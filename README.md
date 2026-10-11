@@ -1,8 +1,8 @@
-# Offshorekart
+# Sokkelreise
 
 Finn tilbake til hvor du har vært offshore. Last inn reiseloggen fra MinDaVinci, så viser kartet hvor du var på hver tur, også på flyttbare rigger som har flyttet seg mellom brønner.
 
-**https://offshorekart.no**
+**https://sokkelreise.no**
 
 ## Slik virker det
 

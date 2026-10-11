@@ -1,4 +1,4 @@
-/* Offshorekart core — pure logic (import, matching, stays, position lookup). No DOM. */
+/* Sokkelreise core — pure logic (import, matching, stays, position lookup). No DOM. */
 (function(root){
 "use strict";
 const DAY=86400000;

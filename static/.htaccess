@@ -1,4 +1,4 @@
-# Offshorekart – Apache/LiteSpeed-oppsett for ProISP
+# Sokkelreise – Apache/LiteSpeed-oppsett for ProISP
 
 Options -Indexes
 DirectoryIndex index.html
@@ -9,9 +9,9 @@ DirectoryIndex index.html
 #   RewriteEngine On
 #   RewriteCond %{HTTPS} !=on
 #   RewriteCond %{HTTP:X-Forwarded-Proto} !=https
-#   RewriteRule ^ https://offshorekart.no%{REQUEST_URI} [L,R=301]
-#   RewriteCond %{HTTP_HOST} ^www\.offshorekart\.no$ [NC]
-#   RewriteRule ^ https://offshorekart.no%{REQUEST_URI} [L,R=301]
+#   RewriteRule ^ https://sokkelreise.no%{REQUEST_URI} [L,R=301]
+#   RewriteCond %{HTTP_HOST} ^www\.sokkelreise\.no$ [NC]
+#   RewriteRule ^ https://sokkelreise.no%{REQUEST_URI} [L,R=301]
 # </IfModule>
 
 <IfModule mod_headers.c>
