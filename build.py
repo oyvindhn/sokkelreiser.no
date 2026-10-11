@@ -5,6 +5,8 @@
     python3 build.py --artifact   -> build/artifact.html (forhåndsvisning uten <html>-skjelett)
 """
 import json
+import os
+import subprocess
 import pathlib
 import shutil
 import sys
@@ -64,6 +66,9 @@ def build_site():
         if f.is_file():
             shutil.copy2(f, OUT / f.name)
     shutil.copy2(ROOT / "data" / "koder.json", OUT / "koder.json")
+    # versjon.txt: brukes til å kontrollere at publiseringen faktisk havnet der domenet peker
+    sha = os.environ.get("GITHUB_SHA") or subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    (OUT / "versjon.txt").write_text((sha or "lokal") + "\n", encoding="utf-8")
     print(f"public/index.html  {len(html.encode()) / 1024:.0f} kB")
 
 

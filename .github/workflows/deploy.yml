@@ -97,9 +97,20 @@ jobs:
             -e "ssh -i $HOME/.ssh/deploy_key -p $PROISP_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes" \
             public/ "$PROISP_USER@$PROISP_HOST:$PROISP_PATH/"
 
-      - name: Verifiser at siden er oppe
-        if: steps.oppsett.outputs.klar == 'ja' && vars.SITE_URL != ''
+      - name: Verifiser at domenet viser den nye versjonen
+        if: steps.oppsett.outputs.klar == 'ja'
+        env:
+          SITE_URL: ${{ vars.SITE_URL || 'https://sokkelreiser.no' }}
         run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' --retry 3 --retry-delay 5 "${{ vars.SITE_URL }}")
-          echo "HTTP $code fra ${{ vars.SITE_URL }}"
-          test "$code" = "200"
+          SSH="ssh -i $HOME/.ssh/deploy_key -p $PROISP_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes $PROISP_USER@$PROISP_HOST"
+          echo "Lastet opp til: $PROISP_PATH"
+          $SSH "cat '$PROISP_PATH/versjon.txt'" || true
+          for i in 1 2 3 4 5 6; do
+            live=$(curl -fsSL -H 'Cache-Control: no-cache' "$SITE_URL/versjon.txt?t=$(date +%s)" | tr -d '[:space:]' || true)
+            [ "$live" = "$GITHUB_SHA" ] && { echo "OK: $SITE_URL viser $GITHUB_SHA"; exit 0; }
+            sleep 10
+          done
+          echo "::error::Opplastingen gikk til $PROISP_PATH, men $SITE_URL viser en annen versjon ('${live:-ingen versjon.txt}'). PROISP_PATH peker trolig ikke på mappen domenet bruker. Sjekk dokumentrot for sokkelreiser.no i ProISP-kontrollpanelet."
+          echo "Mapper under webroots:"
+          $SSH 'echo "HOME=$HOME"; ls -la "$HOME/webroots" 2>&1 | head -20; ls -la "$HOME" 2>&1 | head -25' | sed 's/^/::notice::/' || true
+          exit 1
