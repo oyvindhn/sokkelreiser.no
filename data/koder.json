@@ -1,5 +1,7 @@
 {
   "app": "sokkelreiser",
   "version": 1,
-  "koder": {}
+  "koder": {
+    "SKV": { "navn": "SKARV" }
+  }
 }

@@ -222,35 +222,42 @@ function rigPosFor(id,stays){
     const w=rows.find(r=>a<=r.e+21&&b>=r.s-21);if(w)return [w.lat,w.lon]}
   return null;
 }
+const isAccommodation=f=>/ACCOMMODATION|FLOTEL|BOLIG/i.test(f.kind+" "+f.functions)||/^FLOATEL\b/i.test(f.name);
+/* Kandidater med bevis. sc = poeng, ev = antall uavhengige bevis (flytid, boreperiode, nabo).
+   En kode som bare ligner et navn, kobles aldri uten minst ett bevis. */
 function scoredCandidates(p,stays,neigh){
   const mine=stays.filter(s=>s.key===p.key);
-  const near=[...((neigh.get(p.key))||new Map()).keys()].map(k=>placePos(k)).filter(Boolean);
+  const nbKeys=[...((neigh.get(p.key))||new Map()).keys()];
+  const near=nbKeys.map(k=>placePos(k)).filter(Boolean);
   const hints=C.flightHints(S.legs,p.key);
   return candidates(p,10).map(c=>{
-    let sc=c.sc;const f=c.f;
-    if(f.moveable&&D.activity){
-      const fit=C.dateFit(D.activity.get(f.id)||[],mine);
-      if(fit!=null&&D.activity.has(f.id)){if(fit>=.7)sc+=.12;else if(fit<.3)sc-=.3}
+    let sc=c.sc,ev=0;const f=c.f,name=c.sc>=.9;
+    if(f.moveable&&D.activity&&mine.length){
+      const fit=D.activity.has(f.id)?C.dateFit(D.activity.get(f.id),mine):0;
+      if(fit>=.7){sc+=.12;ev++}
+      else if(isAccommodation(f)){if(nbKeys.some(k=>S.places[k]&&S.places[k].link)){ev++}}   // boligrigg: borer aldri selv
+      else if(fit<.3)sc-=name?.1:.4;   // rigg/fartøy som ikke boret noe sted da du var der
     }
-    // flytid fra heliporten: hvor langt ut lå kandidaten?
     const pos=f.moveable?rigPosFor(f.id,mine):(f.lat!=null?[f.lat,f.lon]:null);
-    const ff=C.flightFit(pos,hints);if(ff>0)sc+=.12;else if(ff<0)sc-=.35;
+    const ff=C.flightFit(pos,hints);if(ff>0){sc+=.12;ev++}else if(ff<0)sc-=.35;
     if(near.length&&f.lat!=null&&!f.moveable){
       const d=Math.min(...near.map(q=>C.haversineKm(q,[f.lat,f.lon])));
-      if(d<=40)sc+=.1;else if(d>=200)sc-=.2;
+      if(d<=40){sc+=.1;ev++}else if(d>=200)sc-=.2;
     }
-    return {...c,sc,lat:f.moveable?null:f.lat,lon:f.moveable?null:f.lon};
-  }).sort((a,b)=>b.sc-a.sc||(a.f.phase==="IN SERVICE"?-1:1));
+    return {...c,sc,ev,name,lat:f.moveable?null:f.lat,lon:f.moveable?null:f.lon};
+  }).sort((a,b)=>b.sc-a.sc||b.ev-a.ev||(a.f.phase==="IN SERVICE"?-1:1));
 }
 function autoLink(){
   if(!D.facilities.length)return 0;let n=0;
+  // automatiske koblinger vurderes på nytt hver gang (bekreftede og manuelle røres ikke)
+  for(const p of Object.values(S.places))if(p.auto&&p.link&&p.link.type==="sodir"){p.link=null;p.auto=false;if(!p.labelEdited)p.label=p.nameHint||p.raw}
   const stays=C.buildStays(S.legs,kindOf),neigh=C.neighbours(S.legs,kindOf);
   for(let pass=0;pass<3;pass++){   // nye koblinger gir naboer til neste runde
     let got=0;
     for(const p of Object.values(S.places)){
       if(p.kind!=="installation"||p.link)continue;
       const pick=C.pickAuto(scoredCandidates(p,stays,neigh));
-      if(!pick)continue;
+      if(!pick||!(pick.name||pick.ev>0))continue;
       p.link={type:"sodir",id:pick.f.id};p.auto=true;if(!p.labelEdited)p.label=C.titleCase(pick.f.name);got++;
     }
     n+=got;if(!got)break;
