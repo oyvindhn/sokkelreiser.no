@@ -441,7 +441,7 @@ function rigTimeline(facId,wellbores){
   }
   return {sites,visits,siteById:Object.fromEntries(sites.map(s=>[s.id,s]))};
 }
-function titleCase(s){return String(s||"").toLowerCase().replace(/(^|[\s\-\/(])([a-zæøå])/g,(m,a,b)=>a+b.toUpperCase()).replace(/\bMærsk\b/g,"Maersk")}
+function titleCase(s){return String(s||"").toLowerCase().replace(/(^|[\s\-\/(])([a-zæøå])/g,(m,a,b)=>a+b.toUpperCase()).replace(/\bMærsk\b/g,"Maersk").replace(/\b(Fpso|Fso|Fpu|Mopu|Fsu|Tlp|Ii|Iii|Iv|Vi|Vii|Viii|Ix)\b/g,m=>m.toUpperCase())}
 /* «VOLVE» -> «Volvefeltet», «IVAR AASEN» -> «Ivar Aasen-feltet» */
 function fieldWord(f){const t=titleCase(f);return /[\s\d]/.test(t)?t+"-feltet":t+"feltet"}
 

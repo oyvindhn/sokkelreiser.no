@@ -211,4 +211,6 @@ test("riggens navn på datoen og lisens i lokasjonsnavnet", () => {
 test("feltnavn og Maersk", () => {
   assert.equal(C.titleCase("MÆRSK INSPIRER"), "Maersk Inspirer");
   assert.equal(C.titleCase("IVAR AASEN"), "Ivar Aasen");
+  assert.equal(C.titleCase("GOLIAT FPSO"), "Goliat FPSO");
+  assert.equal(C.titleCase("PETROJARL KNARR"), "Petrojarl Knarr");
 });

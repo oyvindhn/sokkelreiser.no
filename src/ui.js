@@ -187,7 +187,7 @@ function syncPlaces(){
     const auto=port?"base":nearPort.has(d.key)?"installation":d.guess;
     const kind=old?(old.kindEdited?old.kind:(port||nearPort.has(d.key)?auto:old.kind)):auto;
     const autoLabel=kind==="installation"?(d.nameHint||d.raw):d.raw;
-    next[d.key]=old?{...old,kind,link:kind==="base"?null:old.link,rows:d.rows,raw:d.raw,nameHint:d.nameHint,guess:d.guess,label:old.labelEdited?old.label:(kind==="installation"&&old.link&&old.link.type==="sodir"&&D.facById.get(old.link.id)?old.label:autoLabel)}
+    next[d.key]=old?{...old,kind,link:kind==="base"?null:old.link,rows:d.rows,raw:d.raw,nameHint:d.nameHint,guess:d.guess,label:old.labelEdited?old.label:(kind==="installation"&&old.link&&old.link.type==="sodir"&&D.facById.get(old.link.id)?C.titleCase(D.facById.get(old.link.id).name):autoLabel)}
                    :{key:d.key,raw:d.raw,label:autoLabel,nameHint:d.nameHint,kind,guess:d.guess,link:null,auto:false,rows:d.rows};
   }
   for(const m of S.manual){if(S.places[m.key])next[m.key]={...S.places[m.key],manualOnly:!next[m.key]}}
@@ -688,7 +688,9 @@ function instTitle(s,p){
 function stayRow(s){
   const sel=S.ui.sel===s.id;const p=S.places[s.key];
   const segs=s.segs;const first=segs.find(g=>g.site)||segs[0];
-  const where=segs.filter(g=>g.site).map(g=>g.site.name).filter((x,i,a)=>a.indexOf(x)===i).join(" → ")||"Posisjon ukjent";
+  // faste installasjoner: bare navnet (står allerede som tittel). Rigger: «Volvefeltet 15/9».
+  const title=p?p.label:s.key;
+  const where=segs.some(g=>g.site)?segs.filter(g=>g.site&&g.site.kind!=="fixed"&&C.normName(g.site.name)!==C.normName(title)).map(g=>g.site.name).filter((x,i,a)=>a.indexOf(x)===i).join(" → "):"Posisjon ukjent";
   const conf=segs.reduce((w,g)=>{const r={ukjent:0,usikker:1,trolig:2,manuell:3,sikker:4};return r[g.conf]<r[w]?g.conf:w},"sikker");
   const when=`${C.fmtDate(s.start,false)}${s.startKnown?"":"?"}<br>${C.fmtDate(s.end,false)}${s.endKnown?"":"?"}`;
   let html=`<div class="stay${sel?" sel":""}" role="button" tabindex="0" data-stay="${h(s.id)}" aria-expanded="${sel}">
