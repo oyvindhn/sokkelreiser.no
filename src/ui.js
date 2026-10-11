@@ -178,13 +178,16 @@ function restoreSodirFile(){
 function syncPlaces(){
   const derived=C.derivePlaces(S.legs);
   const next={};
+  // koder som flys direkte til/fra en kjent heliport, er installasjoner
+  const nearPort=new Set();for(const l of S.legs){if(!l.from||!l.to)continue;if(C.heliport(l.from))nearPort.add(C.placeKey(l.to));if(C.heliport(l.to))nearPort.add(C.placeKey(l.from))}
   for(const d of derived){
     const old=S.places[d.key];
     const port=!!C.heliport(d.raw);   // kjent heliport er alltid en landbase
-    const kind=old?(old.kindEdited||!port?old.kind:"base"):(port?"base":d.guess);
-    const auto=kind==="installation"?(d.nameHint||d.raw):d.raw;
-    next[d.key]=old?{...old,kind,link:kind==="base"?null:old.link,rows:d.rows,raw:d.raw,nameHint:d.nameHint,guess:d.guess,label:old.labelEdited?old.label:(kind==="installation"&&old.link&&old.link.type==="sodir"&&D.facById.get(old.link.id)?old.label:auto)}
-                   :{key:d.key,raw:d.raw,label:auto,nameHint:d.nameHint,kind,guess:d.guess,link:null,auto:false,rows:d.rows};
+    const auto=port?"base":nearPort.has(d.key)?"installation":d.guess;
+    const kind=old?(old.kindEdited?old.kind:(port||nearPort.has(d.key)?auto:old.kind)):auto;
+    const autoLabel=kind==="installation"?(d.nameHint||d.raw):d.raw;
+    next[d.key]=old?{...old,kind,link:kind==="base"?null:old.link,rows:d.rows,raw:d.raw,nameHint:d.nameHint,guess:d.guess,label:old.labelEdited?old.label:(kind==="installation"&&old.link&&old.link.type==="sodir"&&D.facById.get(old.link.id)?old.label:autoLabel)}
+                   :{key:d.key,raw:d.raw,label:autoLabel,nameHint:d.nameHint,kind,guess:d.guess,link:null,auto:false,rows:d.rows};
   }
   for(const m of S.manual){if(S.places[m.key])next[m.key]={...S.places[m.key],manualOnly:!next[m.key]}}
   for(const k in S.places)if(!next[k]&&(S.places[k].link||S.places[k].kind!==S.places[k].guess))next[k]={...S.places[k],rows:0};
@@ -388,7 +391,7 @@ class Chart{
   setItems(it){this.items=it;this.req()}
   req(){if(this.raf)return;this.raf=requestAnimationFrame(()=>{this.raf=0;this.draw()})}
   colors(){const cs=getComputedStyle(document.documentElement),g=n=>cs.getPropertyValue(n).trim();
-    this.col={sea:g("--sea"),grid:g("--sea-grid"),land:g("--land"),coast:g("--coast"),border:g("--border-line"),ink:g("--ink"),muted:g("--muted"),accent:g("--accent"),halo:g("--label-halo"),trail:g("--trail"),panel:g("--panel"),mono:g("--f-mono"),body:g("--f-body")}}
+    this.col={sea:g("--sea"),grid:g("--sea-grid"),land:g("--land"),coast:g("--coast"),border:g("--border-line"),ink:g("--ink"),muted:g("--muted"),accent:g("--accent"),halo:g("--label-halo"),trail:g("--trail"),route:g("--route"),panel:g("--panel"),mono:g("--f-mono"),body:g("--f-body")}}
   draw(){
     if(!this.W)return;if(!this.col)this.colors();
     const {ctx,dpr,W,H}=this,s=this.s,col=this.col;
@@ -434,37 +437,39 @@ class Chart{
   drawItems(){
     const {ctx,col}=this;const it=this.items;this.hits=[];
     ctx.save();
+    // flyruter: buer som på et flykart, alltid samme bue begge veier
+    for(const ln of (it.routes||[]).slice().sort((a,b)=>(a.hi?1:0)-(b.hi?1:0)||(a.dim?0:1)-(b.dim?0:1))){
+      let [p1,p2]=ln.pts;if(p1[1]>p2[1]||(p1[1]===p2[1]&&p1[0]>p2[0]))[p1,p2]=[p2,p1];
+      const [x1,y1]=this.toScreen(...p1),[x2,y2]=this.toScreen(...p2);const L=Math.hypot(x2-x1,y2-y1);if(L<2)continue;
+      const k=Math.min(.18,40/Math.max(L,1)+.08),mx=(x1+x2)/2-(y2-y1)*k,my=(y1+y2)/2+(x2-x1)*k;
+      ctx.beginPath();ctx.moveTo(x1,y1);ctx.quadraticCurveTo(mx,my,x2,y2);
+      ctx.strokeStyle=ln.hi?col.accent:col.route;ctx.lineWidth=ln.hi?2.2:1.3;ctx.globalAlpha=ln.dim?.18:1;ctx.lineCap="round";ctx.stroke();ctx.globalAlpha=1;
+    }
     for(const ln of it.lines||[]){
       if(ln.pts.length<2)continue;ctx.beginPath();
       ln.pts.forEach(([la,lo],i)=>{const [x,y]=this.toScreen(la,lo);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});
       ctx.strokeStyle=ln.hi?col.accent:col.trail;ctx.lineWidth=ln.hi?1.8:1.2;ctx.setLineDash([4,3.5]);ctx.globalAlpha=ln.dim?.35:1;ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
-      // arrowheads mid-segment
-      for(let i=1;i<ln.pts.length;i++){
-        const [x1,y1]=this.toScreen(...ln.pts[i-1]),[x2,y2]=this.toScreen(...ln.pts[i]);const L=Math.hypot(x2-x1,y2-y1);if(L<40)continue;
-        const a=Math.atan2(y2-y1,x2-x1),mx=(x1+x2)/2,my=(y1+y2)/2;ctx.beginPath();ctx.moveTo(mx+Math.cos(a)*5,my+Math.sin(a)*5);
-        ctx.lineTo(mx+Math.cos(a+2.5)*5,my+Math.sin(a+2.5)*5);ctx.lineTo(mx+Math.cos(a-2.5)*5,my+Math.sin(a-2.5)*5);ctx.closePath();ctx.fillStyle=ln.hi?col.accent:col.trail;ctx.globalAlpha=ln.dim?.35:1;ctx.fill();ctx.globalAlpha=1}
     }
     const ms=(it.markers||[]).slice().sort((a,b)=>(a.sel?1:0)-(b.sel?1:0)||a.r-b.r);
     for(const m of ms){
       const [x,y]=this.toScreen(m.lat,m.lon);if(x<-30||y<-30||x>this.W+30||y>this.H+30)continue;
-      const r=m.r;ctx.beginPath();
-      if(m.shape==="square")ctx.rect(x-r*.8,y-r*.8,r*1.6,r*1.6);
-      else if(m.shape==="diamond"){ctx.moveTo(x,y-r);ctx.lineTo(x+r,y);ctx.lineTo(x,y+r);ctx.lineTo(x-r,y);ctx.closePath()}
-      else ctx.arc(x,y,r*.85,0,Math.PI*2);
-      const solid=m.conf==="sikker"||m.conf==="manuell"||m.conf==="trolig";
-      ctx.globalAlpha=m.dim?.3:1;
-      if(solid){ctx.fillStyle=m.muted?col.muted:col.accent;ctx.globalAlpha*=m.conf==="trolig"?.75:1;ctx.fill();ctx.globalAlpha=m.dim?.3:1;ctx.lineWidth=1.2;ctx.strokeStyle=col.panel;ctx.stroke()}
-      else{ctx.fillStyle=col.halo;ctx.fill();ctx.setLineDash([2.5,2]);ctx.lineWidth=1.6;ctx.strokeStyle=col.accent;ctx.stroke();ctx.setLineDash([])}
-      if(m.sel){ctx.beginPath();ctx.arc(x,y,r+6,0,Math.PI*2);ctx.lineWidth=2;ctx.strokeStyle=col.ink;ctx.stroke()}
+      const r=m.r;ctx.beginPath();ctx.globalAlpha=m.dim?.3:1;
+      if(m.port){ctx.rect(x-r,y-r,r*2,r*2);ctx.fillStyle=col.ink;ctx.fill();ctx.lineWidth=1.5;ctx.strokeStyle=col.panel;ctx.stroke()}
+      else{
+        ctx.arc(x,y,r,0,Math.PI*2);
+        if(m.conf==="usikker"||m.conf==="ukjent"){ctx.fillStyle=col.halo;ctx.fill();ctx.setLineDash([2.5,2]);ctx.lineWidth=1.6;ctx.strokeStyle=m.muted?col.muted:col.accent;ctx.stroke();ctx.setLineDash([])}
+        else{ctx.fillStyle=m.muted?col.muted:col.accent;ctx.fill();ctx.lineWidth=1.5;ctx.strokeStyle=col.panel;ctx.stroke()}
+      }
+      if(m.sel){ctx.beginPath();ctx.arc(x,y,r+5,0,Math.PI*2);ctx.lineWidth=2;ctx.strokeStyle=col.ink;ctx.stroke()}
       ctx.globalAlpha=1;
       this.hits.push({x,y,r:r+4,m});
     }
     // labels with simple collision avoidance
-    const boxes=[];ctx.font=`600 11.5px ${col.body}`;ctx.textBaseline="middle";
-    const order=ms.slice().sort((a,b)=>(b.sel?1:0)-(a.sel?1:0)||b.r-a.r);
+    const boxes=[];ctx.font=`600 11.5px ${col.body}`;ctx.textBaseline="middle";const portFont=`500 10.5px ${col.mono}`,instFont=ctx.font;
+    const order=ms.slice().sort((a,b)=>(b.sel?1:0)-(a.sel?1:0)||(b.port?1:0)-(a.port?1:0)||(b.days||0)-(a.days||0));
     for(const m of order){
-      if(!m.label||(this.z<5&&!m.sel&&m.r<9))continue;
-      const [x,y]=this.toScreen(m.lat,m.lon);const tw=ctx.measureText(m.label).width;const bx=x+m.r+5,by=y-8,bw=tw+6,bh=16;
+      if(!m.label||(this.z<5.2&&!m.sel&&!m.port)||(m.dim&&!m.sel))continue;
+      ctx.font=m.port?portFont:instFont;const [x,y]=this.toScreen(m.lat,m.lon);const tw=ctx.measureText(m.label).width;const bx=x+m.r+5,by=y-8,bw=tw+6,bh=16;
       if(boxes.some(b=>bx<b.x+b.w&&bx+bw>b.x&&by<b.y+b.h&&by+bh>b.y))continue;boxes.push({x:bx,y:by,w:bw,h:bh});
       ctx.fillStyle=col.halo;ctx.fillRect(bx-1,by+1,bw,bh-2);ctx.fillStyle=m.dim?col.muted:col.ink;ctx.fillText(m.label,bx+2,y);
     }
@@ -510,34 +515,66 @@ class Chart{
 /* ================= map content ================= */
 let chart;
 function inYear(s,y){return !y||(s.start.slice(0,4)<=String(y)&&s.end.slice(0,4)>=String(y))}
+const MAPOPT=Object.assign({routes:true,drift:false},store.get("mapopt",{}));
+const PIN=5.5;   // én størrelse for alle installasjoner
+/* Hvor var en installasjon på en dato? Bruker oppholdet som dekker datoen. */
+function siteAt(key,date){
+  const p=S.places[key];if(!p)return null;
+  if(p.kind==="base"){const hp=C.heliport(p.raw);return hp?{id:"H:"+key,lat:hp[0],lon:hp[1],name:p.raw,kind:"port"}:null}
+  for(const st of STAYS){
+    if(st.key!==key||date<st.start||date>(st.end||st.start))continue;
+    const g=st.segs.find(g=>g.site&&g.start<=date&&date<=g.end)||st.segs.find(g=>g.site);
+    if(g)return g.site;
+  }
+  return null;
+}
 function stayMapItems(){
   const y=S.ui.year;const agg=new Map();const lines=[];const rigSeq=new Map();
+  const rank={sikker:4,manuell:3,trolig:2,usikker:1,ukjent:0};
   for(const st of STAYS){
     const dim=!inYear(st,y);
     for(const sg of st.segs){
       if(!sg.site)continue;
       const k=sg.site.id;if(!agg.has(k))agg.set(k,{site:sg.site,days:0,stays:new Set(),conf:"ukjent",dim:true,sel:false});
       const a=agg.get(k);if(!dim){a.days+=Math.max(1,C.diffDays(sg.start,sg.end));a.dim=false}a.stays.add(st.id);
-      const rank={sikker:4,manuell:3,trolig:2,usikker:1,ukjent:0};if(rank[sg.conf]>rank[a.conf])a.conf=sg.conf;
+      if(rank[sg.conf]>rank[a.conf])a.conf=sg.conf;
       if(S.ui.sel===st.id)a.sel=true;
       if(sg.site.kind==="mobile"&&!dim){const f=sg.site.facilityId;if(!rigSeq.has(f))rigSeq.set(f,[]);const arr=rigSeq.get(f);if(arr[arr.length-1]!==sg.site)arr.push(sg.site)}
     }
   }
-  const selStay=STAYS.find(s=>s.id===S.ui.sel);const selFac=selStay&&selStay.segs.find(g=>g.site&&g.site.kind==="mobile")?.site.facilityId;
-  for(const [f,arr] of rigSeq)if(arr.length>1)lines.push({pts:arr.map(s=>[s.lat,s.lon]),hi:f===selFac,dim:selFac&&f!==selFac});
-  const markers=[...agg.values()].map(a=>({id:a.site.id,lat:a.site.lat,lon:a.site.lon,shape:a.site.kind==="fixed"?"square":a.site.kind==="mobile"?"diamond":"circle",
-    r:Math.min(16,5+Math.sqrt(Math.max(1,a.days))*0.9),conf:a.conf,sel:a.sel,dim:a.dim,label:a.site.name,data:a}));
-  return {markers,lines};
+  const selStay=STAYS.find(s=>s.id===S.ui.sel);
+  if(MAPOPT.drift){
+    const selFac=selStay&&selStay.segs.find(g=>g.site&&g.site.kind==="mobile")?.site.facilityId;
+    for(const [f,arr] of rigSeq)if(arr.length>1)lines.push({pts:arr.map(s=>[s.lat,s.lon]),hi:f===selFac,dim:selFac&&f!==selFac});
+  }
+  // flyruter: én bue per strekning (heliport–installasjon og skytteltrafikk mellom installasjoner)
+  const routes=new Map(),ports=new Map();
+  if(MAPOPT.routes){
+    for(const l of S.legs){
+      if(l.cancelled||!l.from||!l.to||!l.date)continue;
+      const a=siteAt(C.placeKey(l.from),l.date),b=siteAt(C.placeKey(l.to),l.date);
+      if(!a||!b||a.id===b.id)continue;
+      const dim=y&&l.date.slice(0,4)!==String(y);
+      const hi=selStay&&l.date>=selStay.start&&l.date<=(selStay.end||selStay.start)&&[C.placeKey(l.from),C.placeKey(l.to)].includes(selStay.key);
+      const k=[a.id,b.id].sort().join("|");
+      const r=routes.get(k)||{pts:[[a.lat,a.lon],[b.lat,b.lon]],n:0,dim:true,hi:false};
+      r.n++;if(!dim)r.dim=false;if(hi)r.hi=true;routes.set(k,r);
+      for(const s of [a,b])if(s.kind==="port"){const pt=ports.get(s.id)||{site:s,n:0,dim:true};pt.n++;if(!dim)pt.dim=false;ports.set(s.id,pt)}
+    }
+  }
+  const markers=[...agg.values()].map(a=>({id:a.site.id,lat:a.site.lat,lon:a.site.lon,r:PIN,conf:a.conf,sel:a.sel,dim:a.dim,label:a.site.name,days:a.days,data:a}));
+  for(const pt of ports.values())markers.push({id:pt.site.id,lat:pt.site.lat,lon:pt.site.lon,r:4,port:true,dim:pt.dim,label:pt.site.name,data:{port:true,n:pt.n,site:pt.site}});
+  return {markers,lines,routes:[...routes.values()]};
 }
 let RIG=null; // {fac, tl}
 function rigMapItems(){
   if(!RIG)return {markers:[],lines:[]};
   const f0=RIG.fac;
   if(!RIG.tl||!RIG.tl.visits.length)  // fast installasjon (eller rigg uten brønner): vis posisjonen fra Sodir
-    return f0.lat!=null?{markers:[{id:"F"+f0.id,lat:f0.lat,lon:f0.lon,shape:f0.moveable?"diamond":"square",r:9,conf:f0.moveable?"usikker":"sikker",sel:true,label:C.titleCase(f0.name)}],lines:[]}:{markers:[],lines:[]};
+    return f0.lat!=null?{markers:[{id:"F"+f0.id,lat:f0.lat,lon:f0.lon,r:PIN,conf:f0.moveable?"usikker":"sikker",sel:true,label:C.titleCase(f0.name)}],lines:[]}:{markers:[],lines:[]};
   const {tl}=RIG;const mine=mineSites();
   const markers=tl.sites.map(s=>{const days=s.wells.reduce((n,w)=>n+Math.max(1,C.diffDays(w.entry,w.comp||w.entry)),0);
-    return {id:s.id,lat:s.lat,lon:s.lon,shape:"diamond",r:Math.min(14,4+Math.sqrt(days)*.6),conf:"sikker",muted:!mine.has(s.id),sel:S.ui.rigSel===s.id,dim:false,label:s.name,data:{site:s,rig:true}}});
+    return {id:s.id,lat:s.lat,lon:s.lon,r:PIN,days,conf:"sikker",muted:!mine.has(s.id),sel:S.ui.rigSel===s.id,dim:false,label:s.name,data:{site:s,rig:true}}});
   const pts=[];for(const v of tl.visits){const s=tl.siteById[v.site];const l=pts[pts.length-1];if(!l||l[2]!==s.id)pts.push([s.lat,s.lon,s.id])}
   return {markers,lines:[{pts:pts.map(p=>[p[0],p[1]]),hi:false}]};
 }
@@ -974,6 +1011,7 @@ $("btnMenu").addEventListener("click",()=>{const m=$("menu");m.hidden=!m.hidden;
 $("zin").addEventListener("click",()=>chart.zoomAt(2));
 $("zout").addEventListener("click",()=>chart.zoomAt(.5));
 $("zfit").addEventListener("click",fitToContent);
+for(const [id,key] of [["optRoutes","routes"],["optDrift","drift"]]){const el=$(id);el.checked=MAPOPT[key];el.addEventListener("change",()=>{MAPOPT[key]=el.checked;store.set("mapopt",MAPOPT);updateMap()})}
 
 /* ================= boot ================= */
 chart=new Chart($("map"));
@@ -984,7 +1022,8 @@ chart.cb.hover=(m,p,geo)=>{
   $("map").style.cursor="pointer";
   const d=m.data||{};const s=d.site||{};
   let body="";
-  if(d.rig){const n=s.wells.length;body=`<span class="mono">${h(s.sub||s.well)}</span><br>${n} ${plural(n,"brønn","brønner")} · ${s.wells[0].entry.slice(0,4)}–${(s.wells[n-1].comp||s.wells[n-1].entry).slice(0,4)}`}
+  if(d.port){body=`<span class="mono">Heliport</span><br>${d.n} ${plural(d.n,"flyreise","flyreiser")}`}
+  else if(d.rig){const n=s.wells.length;body=`<span class="mono">${h(s.sub||s.well)}</span><br>${n} ${plural(n,"brønn","brønner")} · ${s.wells[0].entry.slice(0,4)}–${(s.wells[n-1].comp||s.wells[n-1].entry).slice(0,4)}`}
   else body=`${d.stays?d.stays.size:0} ${plural(d.stays?d.stays.size:0,"tur","turer")} · ${d.days||0} døgn${s.sub&&s.kind==="mobile"?`<br><span class="mono">${h(s.sub)}</span>`:""}`;
   tip.innerHTML=`<b>${h(m.label)}</b>${body}`;tip.hidden=false;
   const W=chart.W;tip.style.left=Math.min(p[0],W-270)+"px";tip.style.top=p[1]+"px";
@@ -996,7 +1035,7 @@ chart.cb.click=(m,geo)=>{
     else{const p=S.places[pk.id];if(p){p.link={type:"manual",lat:+geo[0].toFixed(5),lon:+geo[1].toFixed(5)};p.auto=false;p.kind="installation"}}
     persist();toast("Posisjonen er lagret.");recompute();return;
   }
-  if(!m)return;
+  if(!m||m.port)return;
   if(S.ui.tab==="rig"&&m.data&&m.data.rig){S.ui.rigSel=m.id;renderRig();updateMap();const el=document.querySelector(`.visit[data-site="${CSS.escape(m.id)}"]`);el&&el.scrollIntoView({block:"nearest"});return}
   const st=STAYS.filter(s=>s.segs.some(g=>g.site&&g.site.id===m.id)&&inYear(s,S.ui.year)).pop()||STAYS.filter(s=>s.segs.some(g=>g.site&&g.site.id===m.id)).pop();
   if(st){if(S.ui.tab!=="stays")switchTab("stays");S.ui.sel=null;selectStay(st.id)}

@@ -15,6 +15,7 @@
   --accent-soft:rgba(217,83,30,.14);
   --accent-ink:#ffffff;
   --trail:rgba(18,36,48,.55);
+  --route:rgba(217,83,30,.55);
   --ok:#2d7a4f;
   --warn:#b07a12;
   --bad:#a63a2c;
@@ -27,12 +28,12 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --sea:#0a1721;--sea-grid:rgba(140,190,220,.10);--land:#1c2621;--coast:#46574a;--border-line:rgba(120,140,110,.5);
   --ink:#dbe5e8;--muted:#93a6ae;--faint:#667a83;--panel:#0e1c26;--panel-2:#142531;--line:rgba(219,229,232,.11);
-  --accent:#ff7a3d;--accent-soft:rgba(255,122,61,.16);--accent-ink:#1a0d05;--trail:rgba(219,229,232,.5);
+  --accent:#ff7a3d;--accent-soft:rgba(255,122,61,.16);--accent-ink:#1a0d05;--trail:rgba(219,229,232,.5);--route:rgba(255,122,61,.5);
   --ok:#5fbf86;--warn:#e0aa3e;--bad:#e46c5b;--label-halo:rgba(10,23,33,.9);--shadow:0 10px 30px rgba(0,0,0,.45);color-scheme:dark}}
 :root[data-theme="dark"]{
   --sea:#0a1721;--sea-grid:rgba(140,190,220,.10);--land:#1c2621;--coast:#46574a;--border-line:rgba(120,140,110,.5);
   --ink:#dbe5e8;--muted:#93a6ae;--faint:#667a83;--panel:#0e1c26;--panel-2:#142531;--line:rgba(219,229,232,.11);
-  --accent:#ff7a3d;--accent-soft:rgba(255,122,61,.16);--accent-ink:#1a0d05;--trail:rgba(219,229,232,.5);
+  --accent:#ff7a3d;--accent-soft:rgba(255,122,61,.16);--accent-ink:#1a0d05;--trail:rgba(219,229,232,.5);--route:rgba(255,122,61,.5);
   --ok:#5fbf86;--warn:#e0aa3e;--bad:#e46c5b;--label-halo:rgba(10,23,33,.9);--shadow:0 10px 30px rgba(0,0,0,.45);color-scheme:dark}
 
 *{box-sizing:border-box}
@@ -193,6 +194,9 @@ button,input,select{font:inherit;color:inherit}
 .legend{left:14px;top:14px;display:flex;flex-direction:column;gap:5px;background:var(--label-halo);padding:9px 11px;border-radius:8px;font-size:11px;color:var(--muted);border:1px solid var(--line)}
 .legend div{display:flex;align-items:center;gap:7px}
 .legend svg{flex:none}
+.legend .lg-opt{display:flex;align-items:center;gap:7px;cursor:pointer;color:var(--ink)}
+.legend .lg-opt input{margin:0 1px 0 0;accent-color:var(--accent);width:13px;height:13px}
+.legend .lg-opt:first-of-type{margin-top:4px;padding-top:7px;border-top:1px solid var(--line)}
 .tip{position:absolute;z-index:6;pointer-events:none;max-width:260px;background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:8px;padding:8px 10px;font-size:12px;transform:translate(12px,12px)}
 .tip b{display:block;font-size:13px}
 .tip .mono{font-size:11px;color:var(--muted)}
