@@ -66,9 +66,17 @@ jobs:
           SSH_KEY: ${{ secrets.PROISP_SSH_KEY }}
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "$PROISP_PORT" -H "$PROISP_HOST" >> ~/.ssh/known_hosts
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2> "$RUNNER_TEMP/keygen.err"; then
+            echo "::error::PROISP_SSH_KEY er ikke en gyldig privat nøkkel. Lim inn hele filen, fra BEGIN- til og med END-linjen."
+            exit 1
+          fi
+          if ! ssh-keyscan -T 15 -p "$PROISP_PORT" -H "$PROISP_HOST" > ~/.ssh/known_hosts 2> "$RUNNER_TEMP/keyscan.err" || [ ! -s ~/.ssh/known_hosts ]; then
+            echo "::error::Fikk ikke kontakt med SSH-serveren på port $PROISP_PORT. Sjekk at PROISP_HOST bare er vertsnavnet (uten ssh:// eller brukernavn) og at porten er riktig."
+            cat "$RUNNER_TEMP/keyscan.err"
+            exit 1
+          fi
 
       - name: Sjekk at målmappen finnes
         if: steps.oppsett.outputs.klar == 'ja'
