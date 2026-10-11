@@ -46,18 +46,20 @@ python3 -m http.server -d public 8000
 
 ## Publisering til ProISP
 
-Hver push til `main` testes, bygges og lastes opp til webhotellet med FTPS via GitHub Actions (`.github/workflows/deploy.yml`). Pull requests bygges og testes, men publiseres ikke.
+Hver push til `main` testes, bygges og lastes opp til webhotellet med rsync over SSH via GitHub Actions (`.github/workflows/deploy.yml`). Pull requests bygges og testes, men publiseres ikke.
 
 Engangsoppsett i GitHub (*Settings → Secrets and variables → Actions*):
 
 | Navn | Type | Verdi |
 |---|---|---|
-| `FTP_SERVER` | Secret | FTP-vertsnavnet fra ProISP-kontrollpanelet |
-| `FTP_USERNAME` | Secret | FTP-brukeren |
-| `FTP_PASSWORD` | Secret | FTP-passordet |
-| `FTP_SERVER_DIR` | Variable (valgfri) | Mappen på serveren. Standard er `public_html/` |
+| `PROISP_HOST` | Secret | SSH-vertsnavnet fra ProISP |
+| `PROISP_USER` | Secret | SSH-brukernavnet |
+| `PROISP_SSH_KEY` | Secret | Hele den private deploy-nøkkelen (filen uten `.pub`) |
+| `PROISP_PORT` | Secret | SSH-porten (valgfri, standard er 22) |
+| `PROISP_PATH` | Secret | Mappen på serveren, f.eks. `public_html/` |
+| `SITE_URL` | Variable (valgfri) | F.eks. `https://sokkelreiser.no`. Workflowen sjekker at siden svarer etter opplasting |
 
-Uten `FTP_SERVER` hopper workflowen over opplastingen, så bygget feiler ikke før oppsettet er på plass. Publisering kan også startes manuelt under *Actions → Bygg og publiser → Run workflow*.
+Den offentlige nøkkelen (`.pub`) er lagt inn og autorisert under *SSH-tilgang* i cPanel. Uten `PROISP_HOST`, `PROISP_USER` eller `PROISP_PATH` hopper workflowen over opplastingen, så bygget feiler ikke før oppsettet er på plass. Publisering kan også startes manuelt under *Actions → Bygg og publiser → Run workflow*. Opplastingen sletter ikke filer på serveren.
 
 Når SSL-sertifikatet er aktivt hos ProISP: fjern `#` foran HTTPS-omdirigeringen og `Strict-Transport-Security` i `static/.htaccess`.
 
