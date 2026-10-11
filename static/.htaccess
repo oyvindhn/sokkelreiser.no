@@ -1,0 +1,33 @@
+# Offshorekart – Apache/LiteSpeed-oppsett for ProISP
+
+Options -Indexes
+DirectoryIndex index.html
+
+# Tving HTTPS og fjern www.
+# Slå på (fjern # foran linjene) når SSL-sertifikatet er aktivt i ProISP-kontrollpanelet.
+# <IfModule mod_rewrite.c>
+#   RewriteEngine On
+#   RewriteCond %{HTTPS} !=on
+#   RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+#   RewriteRule ^ https://offshorekart.no%{REQUEST_URI} [L,R=301]
+#   RewriteCond %{HTTP_HOST} ^www\.offshorekart\.no$ [NC]
+#   RewriteRule ^ https://offshorekart.no%{REQUEST_URI} [L,R=301]
+# </IfModule>
+
+<IfModule mod_headers.c>
+  # Header always set Strict-Transport-Security "max-age=31536000"   # på når HTTPS er aktivt
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  # Appen henter bare fonter fra Google og data fra Sodir. Ingenting annet.
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://factmaps.sodir.no; img-src 'self' data: blob:; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
+
+  # index.html skal alltid hentes på nytt etter en publisering
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript image/svg+xml
+</IfModule>

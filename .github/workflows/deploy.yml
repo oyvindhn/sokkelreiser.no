@@ -1,0 +1,64 @@
+name: Bygg og publiser
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Test
+        run: node --test tests/*.test.js
+
+      - name: Bygg
+        run: python3 build.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: public
+          path: public/
+          include-hidden-files: true
+
+  deploy:
+    # Publiserer bare fra main, og bare når FTP-hemmelighetene er lagt inn.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: produksjon
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+    steps:
+      - name: Mangler FTP-oppsett
+        if: env.FTP_SERVER == ''
+        run: echo "::notice::FTP_SERVER er ikke satt. Hopper over publisering til ProISP."
+
+      - uses: actions/download-artifact@v4
+        if: env.FTP_SERVER != ''
+        with:
+          name: public
+          path: public/
+
+      - name: Last opp til ProISP (FTPS)
+        if: env.FTP_SERVER != ''
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./public/
+          server-dir: ${{ vars.FTP_SERVER_DIR || 'public_html/' }}
+          dangerous-clean-slate: false
