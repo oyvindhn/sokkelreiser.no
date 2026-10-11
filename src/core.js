@@ -514,7 +514,7 @@ const HELIPORTS={SVG:[58.877,5.638],ENZV:[58.877,5.638],BGO:[60.294,5.218],ENBR:
   BOO:[67.269,14.365],ENBO:[67.269,14.365],EVE:[68.491,16.678],ENEV:[68.491,16.678],HFT:[70.680,23.669],ENHF:[70.680,23.669],
   TOS:[69.683,18.919],ENTC:[69.683,18.919],TRD:[63.458,10.924],ENVA:[63.458,10.924],MOL:[62.745,7.263],ENML:[62.745,7.263],
   AES:[62.562,6.120],ENAL:[62.562,6.120],HAU:[59.345,5.208],ENHD:[59.345,5.208],ABZ:[57.202,-2.198],EGPD:[57.202,-2.198],
-  SUM:[59.879,-1.296],EGPB:[59.879,-1.296],ESB:[55.509,8.553],EKEB:[55.509,8.553],DHR:[52.923,4.781],EHKD:[52.923,4.781]};
+  SUM:[59.879,-1.296],EGPB:[59.879,-1.296],EBJ:[55.526,8.553],EKEB:[55.526,8.553],SCS:[60.433,-1.296],EGPM:[60.433,-1.296],DHR:[52.923,4.781],EHKD:[52.923,4.781]};
 function heliport(code){return HELIPORTS[normName(code).replace(/ /g,"")]||null}
 function minutesOf(t){const m=/^(\d{1,2}):(\d{2})$/.exec(t||"");return m?+m[1]*60+ +m[2]:null}
 /* Flyturer mellom en installasjon og en kjent heliport: [{base:[lat,lon], km:anslått avstand eller null}] */
