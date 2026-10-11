@@ -170,6 +170,9 @@ button,input,select{font:inherit;color:inherit}
 .place .sub{font-size:12px;color:var(--muted)}
 .status{font-size:11px;font-weight:650;white-space:nowrap}
 .status.ok{color:var(--ok)}.status.need{color:var(--accent)}.status.base{color:var(--faint)}.status.auto{color:var(--warn)}
+.leg{padding:4px 0;border-top:1px dashed var(--line);overflow-wrap:anywhere}
+.leg:first-of-type{border-top:0}
+.place>.chips{padding-bottom:2px}
 .place-edit{display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:8px;background:var(--panel-2)}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{height:28px;padding:0 10px;border-radius:14px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:12px}

@@ -162,20 +162,25 @@ async function readXlsx(ab){
 /* ---------- column detection ---------- */
 const FIELDS={
   date:{label:"Dato",req:true,re:[/^(date|dato|flight ?date|travel ?date|reisedato|flydato|dep(arture)? ?date|avreisedato)$/i,/dato|date/i],not:/update|endret|year|år$/i},
-  from:{label:"Fra",re:[/^(from|fra|origin|dep(arture)?|avgang|fra ?sted|from ?location)$/i,/^fra\b|^from\b/i]},
-  to:{label:"Til",re:[/^(to|til|destination|arr(ival)?|ankomst|til ?sted|to ?location)$/i,/^til\b|^to\b/i]},
+  from:{label:"Fra",re:[/^(from|fra|origin|fra ?sted|from ?location)$/i,/^fra\b|^from\b/i]},
+  to:{label:"Til",re:[/^(to|til|destination|til ?sted|to ?location)$/i,/^til\b|^to\b/i]},
+  dep:{label:"Avg.",re:[/^(avg|avgang|avreise|dep|departure|dep ?time)$/i]},
+  arr:{label:"Ank.",re:[/^(ank|ankomst|arr|arrival|arr ?time)$/i]},
+  checked:{label:"Sjekket inn",re:[/^(sjekket ?inn|checked ?in)$/i]},
+  tripType:{label:"Reise type",re:[/^(reise ?type|trip ?type)$/i]},
   inst:{label:"Installasjon",re:[/^(offshore ?installation|installation|installasjon|innretning|rig|rigg|platform|plattform|asset|location)$/i,/installa|innretning|rigg?\b|platt?form/i]},
   dir:{label:"Retning",re:[/^(direction|retning|leg|type)$/i,/direction|retning/i]},
-  status:{label:"Status",re:[/^(booking ?status|status)$/i,/status/i]},
-  route:{label:"Rute / flight",re:[/^(route ?no\.?|route|rute|flight|flight ?no\.?|flightnr)$/i,/route|rute|flight/i]},
+  status:{label:"Status",re:[/^(bestillings ?status|booking ?status|status)$/i,/status/i]},
+  route:{label:"Rute / flight",re:[/^(rutenr|rute ?nr|route ?no|route|rute|flight|flight ?no|flightnr)$/i,/route|rute|flight/i]},
   company:{label:"Selskap",re:[/^(company|selskap|firma|employer|arbeidsgiver)$/i]},
   purpose:{label:"Formål",re:[/^(purpose|formål|reason)$/i]},
   ref:{label:"Referanse",re:[/^(reference|referanse|booking ?ref(erence)?|ref)$/i]}
 };
+const hkey=h=>clean(h).replace(/[.:]+$/,"").trim();
 function findHeaderRow(rows){
   let best=-1,bestScore=0;
   for(let i=0;i<Math.min(rows.length,20);i++){
-    const hs=rows[i].map(clean);let score=0;
+    const hs=rows[i].map(hkey);let score=0;
     for(const k in FIELDS)if(hs.some(h=>FIELDS[k].re[0].test(h)))score+=FIELDS[k].req?3:1;
     if(score>bestScore){bestScore=score;best=i}
   }
@@ -185,7 +190,7 @@ function guessColumns(headers){
   const used=new Set(),map={};
   for(const pass of [0,1])for(const k in FIELDS){
     if(map[k]!=null)continue;const f=FIELDS[k];if(!f.re[pass])continue;
-    const i=headers.findIndex((h,ix)=>!used.has(ix)&&h&&f.re[pass].test(clean(h))&&!(f.not&&f.not.test(clean(h))&&!f.re[0].test(clean(h))));
+    const i=headers.findIndex((h,ix)=>!used.has(ix)&&h&&f.re[pass].test(hkey(h))&&!(f.not&&f.not.test(hkey(h))&&!f.re[0].test(hkey(h))));
     if(i>=0){map[k]=i;used.add(i)}
   }
   return map;
@@ -212,6 +217,11 @@ function analyseTables(tables){
 const CANCEL_RE=/(cancel|kansell|avbestil|no.?show|ikke reist|not flown|strøket|annul)/i;
 const DIR_OUT=/^(out|ut|utreise|outbound|offshore|til offshore|to offshore|ut ?reise)\b|outbound|utreise/i;
 const DIR_IN=/^(in|inn|hjem|home|inbound|return|retur|onshore|til land|to shore)\b|inbound|hjemreise|retur/i;
+function fmtTime(v){
+  if(v==null||v==="")return "";
+  if(typeof v==="number"&&isFinite(v)){const f=v-Math.floor(v);if(f===0&&v>=1)return "";const m=Math.round(f*1440)%1440;return pad(Math.floor(m/60))+":"+pad(m%60)}
+  const m=/(?:^|[^\d])(\d{1,2}):(\d{2})/.exec(String(v));return m?pad(+m[1])+":"+m[2]:"";   // «05.08.2026 11:41» -> 11:41
+}
 function buildLegs(table,cols,date1904){
   const g=(r,k)=>cols[k]!=null?r[cols[k]]:"";
   const legs=[];
@@ -222,7 +232,7 @@ function buildLegs(table,cols,date1904){
     if(!from&&!to&&!inst)return;
     const status=clean(g(r,"status")),dirRaw=clean(g(r,"dir"));
     const dir=DIR_OUT.test(dirRaw)?"out":DIR_IN.test(dirRaw)?"in":"";
-    legs.push({i,date,from,to,inst,dir,dirRaw,status,route:clean(g(r,"route")),company:clean(g(r,"company")),purpose:clean(g(r,"purpose")),ref:clean(g(r,"ref")),cancelled:CANCEL_RE.test(status)});
+    legs.push({i,date,from,to,inst,dir,dirRaw,status,route:clean(g(r,"route")),dep:fmtTime(g(r,"dep")),arr:fmtTime(g(r,"arr")),checked:fmtTime(g(r,"checked"))||clean(g(r,"checked")),tripType:clean(g(r,"tripType")),company:clean(g(r,"company")),purpose:clean(g(r,"purpose")),ref:clean(g(r,"ref")),cancelled:CANCEL_RE.test(status)});
   });
   legs.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.i-b.i);
   return legs;
@@ -233,6 +243,11 @@ function placeKey(s){return normName(s)}
 function derivePlaces(legs){
   const P=new Map();
   const hasEnds=legs.some(l=>l.from||l.to);
+  // Uten retnings- og installasjonskolonne: en landbase har flere ulike partnere enn en installasjon.
+  const nb=new Map();
+  for(const l of legs){if(l.cancelled||!l.from||!l.to)continue;const a=placeKey(l.from),b=placeKey(l.to);
+    if(!nb.has(a))nb.set(a,new Set());if(!nb.has(b))nb.set(b,new Set());nb.get(a).add(b);nb.get(b).add(a)}
+  const deg=k=>nb.has(k)?nb.get(k).size:0;
   const get=(raw)=>{const k=placeKey(raw);if(!k)return null;if(!P.has(k))P.set(k,{key:k,raw:clean(raw),rows:0,names:new Map(),asFrom:0,asTo:0,first:null,votesInst:0,votesBase:0});return P.get(k)};
   for(const l of legs){
     if(l.cancelled)continue;
@@ -248,6 +263,8 @@ function derivePlaces(legs){
         const ni=placeKey(l.inst);
         if(a&&ni===a.key)a.votesInst+=2;
         if(b&&ni===b.key)b.votesInst+=2;
+      }else if(!l.dir&&a&&b&&deg(a.key)!==deg(b.key)){
+        const lo=deg(a.key)<deg(b.key)?a:b,hi=lo===a?b:a;lo.votesInst++;hi.votesBase++;
       }
     }else if(l.inst){
       const p=get(l.inst);p.rows++;p.names.set(l.inst,(p.names.get(l.inst)||0)+1);p.votesInst++;
@@ -268,6 +285,26 @@ function derivePlaces(legs){
   }
   out.sort((a,b)=>b.rows-a.rows);
   return out;
+}
+
+/* ---------- koder -> navn ---------- */
+/* Forslag til hva en kort kode står for: bokstavene i koden må forekomme i rekkefølge i navnet,
+   og første bokstav må starte et ord. Brukes bare som forslag, aldri som automatisk kobling. */
+function codeScore(code,name){
+  const c=normName(code).replace(/ /g,"");
+  if(c.length<2||c.length>6||/\d/.test(c))return 0;
+  const words=normName(name).split(" ").filter(Boolean);if(!words.length)return 0;
+  const flat=words.join(""),starts=new Set();let pos=0;for(const w of words){starts.add(pos);pos+=w.length}
+  let i=0,startHits=0;
+  for(let k=0;k<c.length;k++){
+    let j=-1;
+    if(k===0){for(const s of [...starts].sort((a,b)=>a-b))if(flat[s]===c[0]){j=s;break}}
+    else j=flat.indexOf(c[k],i);
+    if(j<0)return 0;
+    if(starts.has(j))startHits++;
+    i=j+1;
+  }
+  return Math.min(.85,.4+.1*startHits+(c[0]===flat[0]?.15:0)-.002*flat.length);
 }
 
 /* ---------- stays ---------- */
@@ -419,6 +456,6 @@ function toCSV(rows,delim=";"){
 
 const api={DAY,pad,isoFromDate,toDay,fromDay,addDays,diffDays,todayIso,parseDate,fmtDate,clean,normName,tokens,nameScore,parseCSV,readXlsx,
   FIELDS,findHeaderRow,guessColumns,analyseTables,buildLegs,placeKey,derivePlaces,buildStays,normFacility,normWellbore,rowsToObjects,
-  haversineKm,rigTimeline,locateOnRig,titleCase,toCSV,isSodirWellbore,isSodirFacility};
+  codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,titleCase,toCSV,isSodirWellbore,isSodirFacility};
 if(typeof module!=="undefined"&&module.exports)module.exports=api;else root.OK=api;
 })(typeof window!=="undefined"?window:globalThis);

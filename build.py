@@ -63,6 +63,7 @@ def build_site():
     for f in (ROOT / "static").iterdir():
         if f.is_file():
             shutil.copy2(f, OUT / f.name)
+    shutil.copy2(ROOT / "data" / "koder.json", OUT / "koder.json")
     print(f"public/index.html  {len(html.encode()) / 1024:.0f} kB")
 
 

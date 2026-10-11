@@ -80,3 +80,70 @@ test("finner riggens lokasjon på en dato", () => {
 test("CSV med semikolon og anførselstegn", () => {
   assert.deepEqual(C.parseCSV('Dato;Installasjon\n01.02.2020;"Rig; X"\n'), [["Dato", "Installasjon"], ["01.02.2020", "Rig; X"]]);
 });
+
+/* ---------- MinDaVinci-eksport: Fra/Til er alt som finnes ---------- */
+const MDV_HEAD = ["", "Dato", "Avg.", "Ank.", "Rutenr", "Fra", "Til", "Sjekket inn", "Ref.", "Firma", "Formål", "Reise type", "Bestillingsstatus"];
+function mdvRows() {
+  const rows = [MDV_HEAD];
+  let d = 44927; // 2023-01-01
+  const trip = (from, to, status = "Bekreftet") => rows.push(["", d, 0.3125, 0.3333, "R" + d, from, to, "Ja", "REF" + d, "Testfirma", "Arbeid", "Skytteltrafikk", status]);
+  // BASEA flyr til fire installasjoner, BASEB til to. Hver tur er ut og hjem.
+  for (const inst of ["I1", "I2", "I3", "I4"]) { trip("BASEA", inst); d += 14; trip(inst, "BASEA"); d += 20; }
+  for (const inst of ["I5", "I6"]) { trip("BASEB", inst); d += 14; trip(inst, "BASEB"); d += 20; }
+  trip("BASEA", "I1", "Kansellert"); d += 3;
+  return rows;
+}
+
+test("MinDaVinci-kolonner gjenkjennes uten valg", () => {
+  const t = C.analyseTables([{ name: "Ark1", rows: mdvRows() }])[0];
+  const want = { date: 1, dep: 2, arr: 3, route: 4, from: 5, to: 6, checked: 7, ref: 8, company: 9, purpose: 10, tripType: 11, status: 12 };
+  for (const k in want) assert.equal(t.cols[k], want[k], k);
+  assert.equal(t.cols.inst, undefined);
+  assert.equal(t.cols.dir, undefined);
+});
+
+test("tider, firma og kansellerte reiser leses riktig", () => {
+  const t = C.analyseTables([{ name: "Ark1", rows: mdvRows() }])[0];
+  const legs = C.buildLegs(t, t.cols, false);
+  assert.equal(legs.length, 13);
+  assert.equal(legs[0].dep, "07:30");
+  assert.equal(legs[0].arr, "08:00");
+  assert.equal(legs[0].company, "Testfirma");
+  assert.equal(legs.filter((l) => l.cancelled).length, 1);
+});
+
+test("finner landbaser og installasjoner uten retning og navn", () => {
+  const t = C.analyseTables([{ name: "Ark1", rows: mdvRows() }])[0];
+  const legs = C.buildLegs(t, t.cols, false);
+  const k = Object.fromEntries(C.derivePlaces(legs).map((p) => [p.key, p.guess]));
+  assert.deepEqual(k, { BASEA: "base", BASEB: "base", I1: "installation", I2: "installation", I3: "installation", I4: "installation", I5: "installation", I6: "installation" });
+  const stays = C.buildStays(legs, (x) => k[x]);
+  assert.equal(stays.length, 6);
+  assert.ok(stays.every((s) => s.days === 14 && s.startKnown && s.endKnown));
+});
+
+test("kodeforslag foreslår, men gjetter ikke på tilfeldige navn", () => {
+  assert.ok(C.codeScore("SKV", "SKARV") >= 0.5);
+  assert.ok(C.codeScore("PJK", "PETROJARL KNARR") >= 0.5);
+  assert.equal(C.codeScore("SVG", "SKARV"), 0);
+  assert.equal(C.codeScore("X", "XYZ"), 0);
+  assert.ok(C.codeScore("SKV", "SKARV") < 0.9, "skal aldri være høy nok til automatisk kobling");
+});
+
+test("klokkeslett fra Excel og tekst", () => {
+  assert.equal(C.fmtTime(0.3125), "07:30");
+  assert.equal(C.fmtTime("07:45:00"), "07:45");
+  assert.equal(C.fmtTime(45000), "");
+});
+
+test("dato og klokkeslett i samme celle, og innsjekking som klokkeslett", () => {
+  const rows = [MDV_HEAD, ["", "05.08.2026", "05.08.2026 11:41", "05.08.2026 12:35", "R1", "INST", "BASE", "09:43", 1, "Testfirma", "Ordinært offshoreopphold", "Reise", ""]];
+  const t = C.analyseTables([{ name: "Ark1", rows }])[0];
+  const l = C.buildLegs(t, t.cols, false)[0];
+  assert.equal(l.date, "2026-08-05");
+  assert.equal(l.dep, "11:41");
+  assert.equal(l.arr, "12:35");
+  assert.equal(l.checked, "09:43");
+  assert.equal(l.cancelled, false);
+  assert.equal(C.fmtTime(0.40486), "09:43");
+});

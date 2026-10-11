@@ -149,6 +149,7 @@ function candidates(place,limit=6){
   const res=[];
   for(const f of D.facilities){
     let sc=0;for(const s of q)sc=Math.max(sc,C.nameScore(s,f.name));
+    sc=Math.max(sc,C.codeScore(place.raw,f.name)*(f.moveable||f.phase==="IN SERVICE"?1:.9));
     if(sc>=.45)res.push({f,sc});
   }
   res.sort((a,b)=>b.sc-a.sc||(a.f.phase==="IN SERVICE"?-1:1));
@@ -160,6 +161,20 @@ function autoLink(){
     if(p.kind!=="installation"||p.link)continue;
     const c=candidates(p,2);
     if(c[0]&&c[0].sc>=.9&&(!c[1]||c[1].sc<c[0].sc-.05)){p.link={type:"sodir",id:c[0].f.id};p.auto=true;n++}
+  }
+  return n;
+}
+/* Kodeliste: koder som tidligere er koblet (koder.json ligger ved siden av siden og kan utvides). */
+let CODES={};
+async function loadCodeList(){try{const r=await fetch("koder.json",{cache:"no-cache"});if(!r.ok)return;const j=await r.json();CODES=(j&&j.koder)||{}}catch(_){}}
+function applyCodeList(){
+  if(!D.facilities.length)return 0;let n=0;
+  const byName=new Map(D.facilities.map(f=>[C.normName(f.name),f]));
+  for(const k in CODES){
+    const p=S.places[C.placeKey(k)];if(!p||p.link||(p.kindEdited&&p.kind==="base"))continue;
+    const e=CODES[k]||{};const f=(e.sodirId&&D.facById.get(String(e.sodirId)))||byName.get(C.normName(e.navn||""));
+    if(!f)continue;
+    p.link={type:"sodir",id:f.id};p.auto=false;p.kind="installation";if(!p.labelEdited)p.label=C.titleCase(f.name);n++;
   }
   return n;
 }
@@ -434,9 +449,9 @@ function emptyState(){
   return `<div class="drop" id="drop">
     <h2>Finn tilbake til hvor du har vært offshore</h2>
     <ol>
-      <li><span><b>Eksporter reisehistorikken</b> fra MinDaVinci til Excel, eller bruk en CSV med dato og installasjon.</span></li>
-      <li><span><b>Slipp filen her.</b> Den leses bare i nettleseren din og lastes ikke opp noe sted.</span></li>
-      <li><span><b>Koble installasjonene til Sodir.</b> For flyttbare rigger slår kartet opp hvilken brønn riggen boret på da du var der.</span></li>
+      <li><span><b>Eksporter reisehistorikken</b> fra MinDaVinci til Excel.</span></li>
+      <li><span><b>Slipp filen her.</b> Kolonnene gjenkjennes automatisk. Filen leses bare i nettleseren din og lastes ikke opp noe sted.</span></li>
+      <li><span><b>Koble kodene til Sodir.</b> Appen foreslår innretning for hver kode, og du bekrefter med ett klikk. For flyttbare rigger slår kartet opp hvilken brønn riggen boret på da du var der.</span></li>
     </ol>
     <div class="actions">
       <button class="btn accent" type="button" data-act="pick">Velg fil</button>
@@ -526,7 +541,15 @@ function stayDetail(s){
     html+=`</div>`;
   }
   const legs=s.legs.filter(Boolean);
-  if(legs.length)html+=`<div class="small"><div class="muted" style="margin-bottom:3px">Reiser i loggen</div>${legs.map(l=>`<div class="mono" style="font-size:11.5px">${C.fmtDate(l.date)} ${h(l.from||"")}${l.from||l.to?" → ":""}${h(l.to||l.inst)}${l.route?` · ${h(l.route)}`:""}</div>`).join("")}</div>`;
+  if(legs.length){
+    const nm=x=>{const p=S.places[C.placeKey(x)];return p&&p.label&&C.normName(p.label)!==C.normName(x)?`${p.label} (${x})`:x};
+    const line=l=>{
+      const t=[l.dep,l.arr].filter(Boolean).join("–");
+      const ci=l.checked?(/^\d{1,2}:\d{2}$/.test(l.checked)?"Sjekket inn "+l.checked:/^(nei|no|n|false|0)$/i.test(l.checked)?"Ikke sjekket inn":"Sjekket inn"):"";
+      const sub=[l.company,ci].filter(Boolean);
+      return `<div class="leg"><div class="mono">${C.fmtDate(l.date)}${t?" · "+h(t):""}${l.route?" · "+h(l.route):""}</div><div>${h(nm(l.from||""))}${l.from||l.to?" → ":""}${h(nm(l.to||l.inst))}</div>${sub.length?`<div class="muted">${sub.map(h).join(" · ")}</div>`:""}</div>`};
+    html+=`<div class="small"><div class="muted" style="margin-bottom:3px">Reiser i loggen</div>${legs.map(line).join("")}</div>`;
+  }
   if(!s.startKnown||!s.endKnown||s.long)html+=`<div class="note">${!s.startKnown?"Loggen mangler utreisen. ":""}${!s.endKnown?(s.ongoing?"Ingen hjemreise registrert ennå. ":"Loggen mangler hjemreisen. "):""}${s.long?"Oppholdet er uvanlig langt – kanskje mangler en reise i loggen.":""}</div>`;
   const p=S.places[s.key];const mob=s.segs.find(g=>g.site&&g.site.kind==="mobile");
   html+=`<div class="row">
@@ -628,6 +651,10 @@ function renderPlaces(){
       <div><div class="name">${h(p.label)}</div><div class="sub">${h(placeLinkText(p))}${p.kind==="installation"?` · ${stayCount(p.key)} ${plural(stayCount(p.key),"tur","turer")}`:` · ${p.rows} reiser`}</div></div>
       <button class="btn small ghost" type="button" data-act="toggleplace" data-key="${h(p.key)}" aria-expanded="${open}">${open?"Lukk":status}</button></div>`;
     if(open)html+=placeEditor(p);
+    else if(p.kind==="installation"&&!p.link&&D.facilities.length){
+      const c=candidates(p,3);
+      html+=c.length?`<div class="chips"><span class="small muted" style="align-self:center">Forslag:</span>${c.map(x=>`<button class="chip" type="button" data-act="linkfac" data-key="${h(p.key)}" data-id="${h(x.f.id)}">${h(C.titleCase(x.f.name))} <span class="muted small">${x.f.moveable?"flyttbar":"fast"}</span></button>`).join("")}</div>`:"";
+    }
     return html+`</div>`;
   };
   let html=`<p class="small muted" style="margin:0">Koble hver installasjon i loggen til en innretning hos Sodir. For flyttbare rigger finner kartet da lokasjonen ut fra datoen på turen.</p>`;
@@ -647,6 +674,7 @@ function placeEditor(p){
   const c=D.facilities.length?candidates(p,5):[];
   const others=Object.values(S.places).filter(o=>o.key!==p.key&&o.kind==="installation"&&o.link&&o.link.type!=="follow");
   return `<div class="place-edit">
+    ${/^[^\s]{2,6}$/.test(p.raw)&&p.kind==="installation"?`<p class="small muted" style="margin:0">«${h(p.raw)}» er en kode fra MinDaVinci. Velg innretningen den står for. Er det en boligrigg uten egne brønner, velg innretningen den lå ved. Valget huskes i denne nettleseren, og kan lastes ned som kodeliste under «···».</p>`:""}
     <div class="field"><label for="placelabel">Navn i kartet</label><input class="input" id="placelabel" data-key="${h(p.key)}" value="${h(p.label)}"></div>
     ${p.kind==="installation"?`
     ${c.length?`<div class="field"><label>Forslag fra Sodir</label><div class="chips">${c.map(x=>`<button class="chip${p.link&&p.link.type==="sodir"&&p.link.id===x.f.id?" on":""}" type="button" data-act="linkfac" data-key="${h(p.key)}" data-id="${h(x.f.id)}">${h(C.titleCase(x.f.name))} <span class="muted small">${x.f.moveable?"flyttbar":"fast"}</span></button>`).join("")}</div></div>`:""}
@@ -677,7 +705,6 @@ function switchTab(t){
 }
 
 /* ================= import ================= */
-let IMPORT=null;
 async function handleFile(file){
   try{
     const name=file.name||"fil";
@@ -699,39 +726,23 @@ async function handleFile(file){
       toast(`Sodir-data lastet fra fil: ${msg}.`);autoLink();persist();await recompute();return;
     }
     an.sort((a,b)=>b.score-a.score);
-    IMPORT={file:name,tables:an,idx:0,date1904,cols:{...an[0].cols}};
-    openImportDialog();
+    const t=an[0],miss=[];
+    if(t.cols.date==null)miss.push("Dato");
+    if(t.cols.inst==null){if(t.cols.from==null)miss.push("Fra");if(t.cols.to==null)miss.push("Til")}
+    if(miss.length)throw new Error(`Fant ikke ${miss.length>1?"kolonnene":"kolonnen"} ${miss.map(m=>"«"+m+"»").join(" og ")}. Bruk reisehistorikken slik den eksporteres fra MinDaVinci.`);
+    const legs=C.buildLegs(t,t.cols,date1904);
+    if(!legs.length)throw new Error("Fant ingen reiser med gyldig dato i filen.");
+    await applyLegs(legs,name);
   }catch(e){console.error(e);toast(e.message||"Kunne ikke lese filen.")}
 }
-function openImportDialog(){
-  const I=IMPORT,t=I.tables[I.idx],f=$("importForm");
-  const opt=(k)=>`<select class="input" id="col-${k}" data-k="${k}"><option value="">–</option>${t.headers.map((hd,i)=>hd?`<option value="${i}"${I.cols[k]===i?" selected":""}>${h(hd)}</option>`:"").join("")}</select>`;
-  const legs=C.buildLegs(t,I.cols,I.date1904);
-  const ok=I.cols.date!=null&&(I.cols.to!=null||I.cols.inst!=null);
-  const prevCols=["date","from","to","inst","dir","status"].filter(k=>I.cols[k]!=null);
-  f.innerHTML=`<h2>Importer reiselogg</h2>
-    <p class="small muted" style="margin:0">${h(I.file)}${I.tables.length>1?"":` · ${t.rowCount} rader`}</p>
-    ${I.tables.length>1?`<div class="field"><label for="imp-sheet">Ark</label><select class="input" id="imp-sheet">${I.tables.map((x,i)=>`<option value="${i}"${i===I.idx?" selected":""}>${h(x.name)} (${x.rowCount} rader)</option>`).join("")}</select></div>`:""}
-    <div class="grid2">${["date","inst","from","to","dir","status"].map(k=>`<div class="field"><label for="col-${k}">${C.FIELDS[k].label}${k==="date"?" *":""}</label>${opt(k)}</div>`).join("")}</div>
-    <p class="small muted" style="margin:0">Dato er påkrevd, sammen med enten <b>Til</b> eller <b>Installasjon</b>. Med Fra og Til finner appen selv ut hva som er heliport og hva som er installasjon.</p>
-    ${legs.length?`<div class="preview"><table><thead><tr><th>Dato</th>${prevCols.filter(k=>k!=="date").map(k=>`<th>${C.FIELDS[k].label}</th>`).join("")}</tr></thead><tbody>${legs.slice(0,6).map(l=>`<tr><td class="mono">${C.fmtDate(l.date)}</td>${prevCols.filter(k=>k!=="date").map(k=>`<td>${h({inst:l.inst,from:l.from,to:l.to,dir:l.dirRaw,status:l.status}[k])}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`:""}
-    <p class="small" style="margin:0"><b>${legs.length}</b> reiser med gyldig dato${legs.filter(l=>l.cancelled).length?`, hvorav ${legs.filter(l=>l.cancelled).length} kansellerte som hoppes over`:""}.</p>
-    ${!ok?`<p class="err">Velg kolonne for dato og for Til eller Installasjon.</p>`:""}
-    ${S.legs.length?`<p class="small muted" style="margin:0">Importen erstatter de ${S.legs.length} reisene du har fra før. Koblingene til Sodir beholdes.</p>`:""}
-    <div class="foot"><button class="btn ghost" value="cancel" type="submit">Avbryt</button><button class="btn accent" id="impGo" value="go" type="submit"${ok&&legs.length?"":" disabled"}>Importer ${legs.length} reiser</button></div>`;
-  const dlg=$("dlgImport");if(!dlg.open)dlg.showModal();
-  const sh=$("imp-sheet");if(sh)sh.addEventListener("change",()=>{I.idx=+sh.value;I.cols={...I.tables[I.idx].cols};openImportDialog()});
-  f.querySelectorAll("select[data-k]").forEach(s=>s.addEventListener("change",()=>{const k=s.dataset.k;if(s.value==="")delete I.cols[k];else I.cols[k]=+s.value;openImportDialog()}));
-}
-$("dlgImport").addEventListener("close",async()=>{
-  if($("dlgImport").returnValue!=="go"||!IMPORT)return;
-  const t=IMPORT.tables[IMPORT.idx];const legs=C.buildLegs(t,IMPORT.cols,IMPORT.date1904);
-  S.legs=legs;S.sourceName=IMPORT.file;IMPORT=null;S.ui.year=null;S.ui.sel=null;
-  syncPlaces();const n=autoLink();persist();
+async function applyLegs(legs,name){
+  S.legs=legs;S.sourceName=name;S.ui.year=null;S.ui.sel=null;
+  syncPlaces();const n=autoLink()+applyCodeList();persist();
   await recompute();switchTab("stays");fitToContent();
+  const skipped=legs.filter(l=>l.cancelled).length;
   const need=Object.values(S.places).filter(p=>p.kind==="installation"&&!p.link).length;
-  toast(`${legs.length} reiser importert.${n?` ${n} installasjoner koblet automatisk.`:""}${need?` ${need} må kobles.`:""}`);
-});
+  toast(`${legs.length-skipped} reiser importert${skipped?`, ${skipped} kansellerte hoppet over`:""}.${n?` ${n} koblet automatisk.`:""}${need?` ${need} koder må kobles.`:""}`);
+}
 function bindDrop(el){
   if(!el)return;
   el.addEventListener("dragover",e=>{e.preventDefault();el.classList.add("over")});
@@ -802,6 +813,10 @@ document.addEventListener("click",async e=>{
   else if(act==="csv")download("sokkelreiser-opphold.csv","﻿"+C.toCSV(stayTable()),"text/csv;charset=utf-8");
   else if(act==="copy")copyText(C.toCSV(stayTable(),"\t"));
   else if(act==="save")download("sokkelreiser-prosjekt.json",JSON.stringify({app:"sokkelreiser",version:1,saved:new Date().toISOString(),sourceName:S.sourceName,legs:S.legs,places:S.places,manual:S.manual,overrides:S.overrides}),"application/json");
+  else if(act==="koder"){
+    const koder={};for(const p of Object.values(S.places))if(p.link&&p.link.type==="sodir"){const f=D.facById.get(p.link.id);if(f)koder[p.raw]={sodirId:f.id,navn:f.name}}
+    download("koder.json",JSON.stringify({app:"sokkelreiser",version:1,koder},null,2),"application/json");
+  }
   else if(act==="sodir"){const ok=await loadFacilities(true);if(ok){autoLink();persist();await recompute();toast("Sodir-data er oppdatert.")}else toast("Fikk ikke kontakt med Sodir.")}
   else if(act==="clear")confirmDialog("Slette alle data?","Reiseloggen, koblingene og lagret Sodir-data fjernes fra denne nettleseren. Lagre en prosjektfil først hvis du vil beholde arbeidet.","Slett alt",()=>{for(const k of store.keys())store.del(k);location.reload()});
   else if(act==="openrig")openRig(b.dataset.id,b.dataset.date);
@@ -814,8 +829,8 @@ document.addEventListener("click",async e=>{
   else if(act==="unlink"){const p=S.places[b.dataset.key];p.link=null;p.auto=false;persist();recompute()}
   else if(act==="approve"){S.places[b.dataset.key].auto=false;persist();renderPlaces();renderPlaceCount()}
   else if(act==="approveall"){for(const p of Object.values(S.places))p.auto=false;persist();renderPlaces();renderPlaceCount()}
-  else if(act==="setbase"){const p=S.places[b.dataset.key];p.kind="base";p.link=null;p.auto=false;if(!p.labelEdited)p.label=p.raw;persist();recompute()}
-  else if(act==="setinst"){const p=S.places[b.dataset.key];p.kind="installation";if(!p.labelEdited)p.label=p.nameHint||p.raw;persist();recompute()}
+  else if(act==="setbase"){const p=S.places[b.dataset.key];p.kind="base";p.kindEdited=true;p.link=null;p.auto=false;if(!p.labelEdited)p.label=p.raw;persist();recompute()}
+  else if(act==="setinst"){const p=S.places[b.dataset.key];p.kind="installation";p.kindEdited=true;if(!p.labelEdited)p.label=p.nameHint||p.raw;persist();recompute()}
   else if(act==="pickplace")startPick("place",b.dataset.key,"Klikk der installasjonen ligger");
 });
 document.addEventListener("keydown",e=>{
@@ -879,7 +894,8 @@ if(document.fonts&&document.fonts.ready)document.fonts.ready.then(themeObs);
     const known=new Map();for(const [id,l] of D.fileWellbores)known.set(id,{id,name:l[0].facility,kind:l[0].facilityKind,moveable:l[0].moveable,lat:null,lon:null,url:""});
     setFacilities([...known.values()],"file",store.get("sodir:wbfile",{}).ts);
   }
-  if(autoLink())persist();
+  await loadCodeList();
+  if(autoLink()+applyCodeList())persist();
   await recompute();
   if(STAYS.length)fitToContent();
 })();
