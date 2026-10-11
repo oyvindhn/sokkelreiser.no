@@ -272,7 +272,7 @@ function applyCodeList(){
   if(!D.facilities.length)return 0;let n=0;
   const byName=new Map(D.facilities.map(f=>[C.normName(f.name),f]));
   for(const k in CODES){
-    const p=S.places[C.placeKey(k)];if(!p||p.link||(p.kindEdited&&p.kind==="base"))continue;
+    const p=S.places[C.placeKey(k)];if(!p||(p.link&&!p.auto)||(p.kindEdited&&p.kind==="base"))continue;   // kodelisten går foran automatiske koblinger
     const e=CODES[k]||{};const f=(e.sodirId&&D.facById.get(String(e.sodirId)))||byName.get(C.normName(e.navn||""));
     if(!f)continue;
     p.link={type:"sodir",id:f.id};p.auto=false;p.kind="installation";if(!p.labelEdited)p.label=C.titleCase(f.name);n++;
