@@ -307,7 +307,21 @@ function allStays(){
   s.sort((a,b)=>a.start<b.start?-1:a.start>b.start?1:0);
   return s;
 }
-function fixedSite(f){return {id:"F"+f.id,lat:f.lat,lon:f.lon,name:C.titleCase(f.name),sub:f.kind?C.titleCase(f.kind):"",kind:"fixed",facilityId:f.id,url:f.url}}
+/* Blokknummer for et felt: det vanligste blant feltets brønner (ett kall per felt, lagres i 14 dager). */
+const FB=new Map();
+async function fieldBlock(field){
+  const k=C.normName(field);if(!k||FB.has(k))return FB.get(k);
+  const c=store.get("sodir:fb:"+k,null);if(c&&Date.now()-c.ts<CACHE_DAYS*864e5){FB.set(k,c.b);return c.b}
+  try{
+    const feats=await arcQuery(5000,{where:`wlbField='${String(field).replace(/'/g,"''")}'`,outFields:"wlbWellboreName",returnGeometry:"false"});
+    const n=new Map();for(const ft of feats){const m=/^(\d+\/\d+)/.exec((ft.attributes||{}).wlbWellboreName||"");if(m)n.set(m[1],(n.get(m[1])||0)+1)}
+    const b=[...n.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||"";FB.set(k,b);store.set("sodir:fb:"+k,{ts:Date.now(),b});return b;
+  }catch(e){FB.set(k,"");return ""}
+}
+function fixedSite(f){
+  const blk=f.belongsTo?FB.get(C.normName(f.belongsTo))||"":"";
+  const place=f.belongsTo?C.fieldWord(f.belongsTo)+(blk?" – "+blk:""):"";
+  return {id:"F"+f.id,lat:f.lat,lon:f.lon,name:C.titleCase(f.name),place,sub:f.kind?C.titleCase(f.kind):"",kind:"fixed",facilityId:f.id,url:f.url}}
 /* Innretninger Sodir regner som faste, men som kan flyttes (f.eks. Mærsk Inspirer: Volve, så Yme). */
 const MOVABLE_KIND=/JACK|MOPU|SEMISUB|VESSEL|SHIP|DRILL/i,FLOATING_KIND=/FPSO|FSO|FPU/i;
 function hasHistory(f){return MOVABLE_KIND.test(f.kind)||FLOATING_KIND.test(f.kind)||!!(D.actRows&&D.actRows.has(f.id))}
@@ -315,7 +329,8 @@ async function prefetchForStays(stays){
   const ids=new Set();
   const want=(key,depth=0)=>{const p=S.places[key];if(!p||!p.link||depth>3)return;if(p.link.type==="sodir"){const f=D.facById.get(p.link.id);if(f&&(f.moveable||hasHistory(f)))ids.add(f.id)}if(p.link.type==="follow")want(p.link.key,depth+1)};
   for(const s of stays)want(s.key);
-  await Promise.all([...ids].map(id=>timelineFor(id)));
+  const fields=new Set();for(const p of Object.values(S.places))if(p.link&&p.link.type==="sodir"){const f=D.facById.get(p.link.id);if(f&&!f.moveable&&f.belongsTo)fields.add(f.belongsTo)}
+  await Promise.all([...[...ids].map(id=>timelineFor(id)),...[...fields].map(fieldBlock)]);
 }
 function resolveStay(stay,key=stay.key,depth=0){
   const ov=S.overrides[stay.id];
@@ -357,7 +372,6 @@ function resolveStay(stay,key=stay.key,depth=0){
   }
   if(f.lat==null)return [{site:null,start:stay.start,end:stay.end,conf:"ukjent",note:"Sodir har ingen posisjon for denne innretningen."}];
   if(MOVABLE_KIND.test(f.kind))return [{site:fixedSite(f),start:stay.start,end:stay.end,conf:"usikker",note:"Dagens posisjon. Innretningen kan flyttes, og Sodir har ingen brønner som viser hvor den lå da."}];
-  if(FLOATING_KIND.test(f.kind))return [{site:fixedSite(f),start:stay.start,end:stay.end,conf:"trolig",note:"Dagens posisjon. Flytende innretninger kan ha ligget et annet sted tidligere."}];
   return [{site:fixedSite(f),start:stay.start,end:stay.end,conf:"sikker",note:"Fast innretning."}];
 }
 function labelOf(key){const p=S.places[key];return p?p.label:key}
@@ -690,7 +704,9 @@ function stayRow(s){
   const segs=s.segs;const first=segs.find(g=>g.site)||segs[0];
   // faste installasjoner: bare navnet (står allerede som tittel). Rigger: «Volvefeltet 15/9».
   const title=p?p.label:s.key;
-  const where=segs.some(g=>g.site)?segs.filter(g=>g.site&&g.site.kind!=="fixed"&&C.normName(g.site.name)!==C.normName(title)).map(g=>g.site.name).filter((x,i,a)=>a.indexOf(x)===i).join(" → "):"Posisjon ukjent";
+  // egen fast installasjon: ingenting (navnet står som tittel). Lå ved en annen (boligrigg): «Skarvfeltet – 6507/5».
+  const own=p&&p.link&&p.link.type==="sodir"?p.link.id:null;
+  const where=segs.some(g=>g.site)?segs.filter(g=>g.site).map(g=>g.site.kind==="fixed"?(g.site.facilityId===own?"":g.site.place||g.site.name):g.site.name).filter((x,i,a)=>x&&C.normName(x)!==C.normName(title)&&a.indexOf(x)===i).join(" → "):"Posisjon ukjent";
   const conf=segs.reduce((w,g)=>{const r={ukjent:0,usikker:1,trolig:2,manuell:3,sikker:4};return r[g.conf]<r[w]?g.conf:w},"sikker");
   const when=`${C.fmtDate(s.start,false)}${s.startKnown?"":"?"}<br>${C.fmtDate(s.end,false)}${s.endKnown?"":"?"}`;
   let html=`<div class="stay${sel?" sel":""}" role="button" tabindex="0" data-stay="${h(s.id)}" aria-expanded="${sel}">

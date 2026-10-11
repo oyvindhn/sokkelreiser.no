@@ -204,7 +204,7 @@ test("riggens navn på datoen og lisens i lokasjonsnavnet", () => {
   assert.equal(s1.name, "Blokk 8/5");
   assert.equal(s1.sub, "8/5-1 · PL 571");
   const s2 = tl.sites.find((s) => s.field === "BRYNHILD");
-  assert.equal(s2.name, "Brynhildfeltet 7/4");
+  assert.equal(s2.name, "Brynhildfeltet – 7/4");
   assert.equal(s2.sub, "7/4-3XX · PL 148");
 });
 
@@ -213,4 +213,11 @@ test("feltnavn og Maersk", () => {
   assert.equal(C.titleCase("IVAR AASEN"), "Ivar Aasen");
   assert.equal(C.titleCase("GOLIAT FPSO"), "Goliat FPSO");
   assert.equal(C.titleCase("PETROJARL KNARR"), "Petrojarl Knarr");
+});
+
+test("datidens funnavn går foran dagens feltnavn", () => {
+  const w = (d, f) => C.normWellbore({ wlbWellboreName: "25/2-18 S", wlbWell: "25/2-18", wlbEntryDate: Date.parse("2016-01-01"), wlbCompletionDate: Date.parse("2016-03-01"), wlbNsDecDeg: 59.6, wlbEwDecDeg: 2.4, wlbDiscovery: d, wlbField: f, fclNpdidFacilityDrilling: 5 });
+  assert.equal(C.rigTimeline("5", [w("LANGFJELLET", "HUGIN SATELLITTER")]).sites[0].name, "Langfjellet – 25/2");
+  assert.equal(C.rigTimeline("5", [w("SKARV", "SKARV")]).sites[0].name, "Skarvfeltet – 25/2");
+  assert.equal(C.rigTimeline("5", [w("25/2-18 S", "HUGIN")]).sites[0].name, "Huginfeltet – 25/2");
 });

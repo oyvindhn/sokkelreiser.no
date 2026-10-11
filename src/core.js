@@ -426,8 +426,11 @@ function rigTimeline(facId,wellbores){
     // «Volvefeltet 15/9»: felt (eller funn) og blokk. Uten felt: «Blokk 8/5». Brønn og lisens i undertittelen.
     const pl=s.licence?"PL "+s.licence.replace(/^PL\s*/i,""):"";
     s.block=(/^(\d+\/\d+)/.exec(s.well)||[])[1]||"";
-    const place=s.field?fieldWord(s.field):s.discovery?titleCase(s.discovery):"";
-    s.name=place?(s.block&&!/\d+\/\d+/.test(place)?place+" "+s.block:place):(s.block?"Blokk "+s.block:pl||s.well);
+    // funnet brønnen ble boret på (datidens navn, f.eks. Langfjellet) går foran dagens felt (Hugin Satellitter)
+    const disc=s.discovery&&!/^\d/.test(s.discovery)?s.discovery:"";
+    const place=disc?(s.field&&normName(s.field)===normName(disc)?fieldWord(s.field):titleCase(disc)):s.field?fieldWord(s.field):"";
+    s.place=place;
+    s.name=place?(s.block&&!/\d+\/\d+/.test(place)?place+" – "+s.block:place):(s.block?"Blokk "+s.block:pl||s.well);
     s.sub=[s.well,pl].filter(x=>x&&x!==s.name).join(" · ");
     s.depth=s.wells.find(w=>w.depth!=null)?.depth??null;
     s.area=by("area");
@@ -566,7 +569,7 @@ function toCSV(rows,delim=";"){
 
 const api={DAY,pad,isoFromDate,toDay,fromDay,addDays,diffDays,todayIso,parseDate,fmtDate,clean,normName,tokens,nameScore,parseCSV,readXlsx,
   FIELDS,findHeaderRow,guessColumns,analyseTables,buildLegs,placeKey,derivePlaces,buildStays,normFacility,normWellbore,rowsToObjects,
-  buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,nameAt,titleCase,toCSV,isSodirWellbore,isSodirFacility,
+  buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,nameAt,fieldWord,titleCase,toCSV,isSodirWellbore,isSodirFacility,
   activityByFacility,dateFit,neighbours,pickAuto,heliport,flightHints,flightFit};
 if(typeof module!=="undefined"&&module.exports)module.exports=api;else root.OK=api;
 })(typeof window!=="undefined"?window:globalThis);

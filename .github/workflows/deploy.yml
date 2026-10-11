@@ -106,7 +106,7 @@ jobs:
           echo "Lastet opp til: $PROISP_PATH"
           $SSH "cat '$PROISP_PATH/versjon.txt'" || true
           for i in 1 2 3 4 5 6; do
-            live=$(curl -fsSL -H 'Cache-Control: no-cache' "$SITE_URL/versjon.txt?t=$(date +%s)" | tr -d '[:space:]' || true)
+            live=$(curl -fsSL --max-time 15 -H 'Cache-Control: no-cache' "$SITE_URL/versjon.txt?t=$(date +%s)" | tr -d '[:space:]' || true)
             [ "$live" = "$GITHUB_SHA" ] && { echo "OK: $SITE_URL viser $GITHUB_SHA"; exit 0; }
             sleep 10
           done
