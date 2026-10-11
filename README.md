@@ -55,11 +55,11 @@ Engangsoppsett i GitHub (*Settings → Secrets and variables → Actions*):
 | `PROISP_HOST` | Secret | SSH-vertsnavnet fra ProISP |
 | `PROISP_USER` | Secret | SSH-brukernavnet |
 | `PROISP_SSH_KEY` | Secret | Hele den private deploy-nøkkelen (filen uten `.pub`) |
-| `PROISP_PORT` | Secret | SSH-porten (valgfri, standard er 22) |
-| `PROISP_PATH` | Secret | Mappen på serveren, f.eks. `public_html/` |
+| `PROISP_PORT` | Secret | SSH-porten (valgfri, standard er 443 hos ProISP) |
+| `PROISP_PATH` | Secret | Absolutt sti til webroten, f.eks. `/home/<konto>/webroots/r<nummer>` |
 | `SITE_URL` | Variable (valgfri) | F.eks. `https://sokkelreiser.no`. Workflowen sjekker at siden svarer etter opplasting |
 
-Den offentlige nøkkelen (`.pub`) er lagt inn og autorisert under *SSH-tilgang* i cPanel. Uten `PROISP_HOST`, `PROISP_USER` eller `PROISP_PATH` hopper workflowen over opplastingen, så bygget feiler ikke før oppsettet er på plass. Publisering kan også startes manuelt under *Actions → Bygg og publiser → Run workflow*. Opplastingen sletter ikke filer på serveren.
+Den offentlige nøkkelen (`.pub`) er lagt inn og autorisert under *SSH-tilgang* i cPanel. Uten `PROISP_HOST`, `PROISP_USER` eller `PROISP_PATH` hopper workflowen over opplastingen, så bygget feiler ikke før oppsettet er på plass. Publisering kan også startes manuelt under *Actions → Bygg og publiser → Run workflow*. Workflowen sjekker at målmappen finnes før den laster opp. Opplastingen sletter ikke filer på serveren.
 
 Når SSL-sertifikatet er aktivt hos ProISP: fjern `#` foran HTTPS-omdirigeringen og `Strict-Transport-Security` i `static/.htaccess`.
 

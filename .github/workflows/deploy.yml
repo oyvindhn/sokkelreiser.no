@@ -41,7 +41,7 @@ jobs:
     env:
       PROISP_HOST: ${{ secrets.PROISP_HOST }}
       PROISP_USER: ${{ secrets.PROISP_USER }}
-      PROISP_PORT: ${{ secrets.PROISP_PORT }}
+      PROISP_PORT: ${{ secrets.PROISP_PORT || '443' }}
       PROISP_PATH: ${{ secrets.PROISP_PATH }}
     steps:
       - name: Sjekk oppsett
@@ -68,14 +68,26 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${PROISP_PORT:-22}" -H "$PROISP_HOST" >> ~/.ssh/known_hosts
+          ssh-keyscan -p "$PROISP_PORT" -H "$PROISP_HOST" >> ~/.ssh/known_hosts
+
+      - name: Sjekk at målmappen finnes
+        if: steps.oppsett.outputs.klar == 'ja'
+        run: |
+          SSH="ssh -i $HOME/.ssh/deploy_key -p $PROISP_PORT -o BatchMode=yes -o ConnectTimeout=20 -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes $PROISP_USER@$PROISP_HOST"
+          if ! $SSH "test -d '$PROISP_PATH' && test -w '$PROISP_PATH'"; then
+            echo "::error::Målmappen $PROISP_PATH finnes ikke eller er ikke skrivbar for brukeren $PROISP_USER. Sjekk PROISP_PATH og PROISP_USER."
+            echo "Mapper brukeren kan se under webroots:"
+            $SSH 'ls -la "$HOME/webroots" 2>&1 | head -30' || true
+            exit 1
+          fi
+          echo "Målmappen finnes: $PROISP_PATH"
 
       - name: Last opp til ProISP (rsync over SSH)
         if: steps.oppsett.outputs.klar == 'ja'
         run: |
           rsync -rltz --chmod=D755,F644 \
-            -e "ssh -i ~/.ssh/deploy_key -p ${PROISP_PORT:-22} -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes" \
-            public/ "$PROISP_USER@$PROISP_HOST:$PROISP_PATH"
+            -e "ssh -i $HOME/.ssh/deploy_key -p $PROISP_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes" \
+            public/ "$PROISP_USER@$PROISP_HOST:$PROISP_PATH/"
 
       - name: Verifiser at siden er oppe
         if: steps.oppsett.outputs.klar == 'ja' && vars.SITE_URL != ''
