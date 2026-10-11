@@ -201,9 +201,14 @@ test("riggens navn på datoen og lisens i lokasjonsnavnet", () => {
   assert.equal(C.nameAt(tl, "2016-04-01"), "MÆRSK INTERCEPTOR");
   assert.equal(C.nameAt(tl, "2022-02-01"), "NOBLE INTERCEPTOR");
   const s1 = tl.sites.find((s) => s.well === "8/5-1");
-  assert.equal(s1.name, "PL 571");
-  assert.equal(s1.sub, "8/5-1");
+  assert.equal(s1.name, "Blokk 8/5");
+  assert.equal(s1.sub, "8/5-1 · PL 571");
   const s2 = tl.sites.find((s) => s.field === "BRYNHILD");
-  assert.equal(s2.name, "Brynhild");
+  assert.equal(s2.name, "Brynhildfeltet 7/4");
   assert.equal(s2.sub, "7/4-3XX · PL 148");
+});
+
+test("feltnavn og Maersk", () => {
+  assert.equal(C.titleCase("MÆRSK INSPIRER"), "Maersk Inspirer");
+  assert.equal(C.titleCase("IVAR AASEN"), "Ivar Aasen");
 });

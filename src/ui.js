@@ -688,7 +688,7 @@ function instTitle(s,p){
 function stayRow(s){
   const sel=S.ui.sel===s.id;const p=S.places[s.key];
   const segs=s.segs;const first=segs.find(g=>g.site)||segs[0];
-  const where=segs.filter(g=>g.site).map(g=>g.site.name+(g.site.sub&&g.site.kind==="mobile"?` · ${g.site.sub}`:"")).filter((x,i,a)=>a.indexOf(x)===i).join(" → ")||"Posisjon ukjent";
+  const where=segs.filter(g=>g.site).map(g=>g.site.name).filter((x,i,a)=>a.indexOf(x)===i).join(" → ")||"Posisjon ukjent";
   const conf=segs.reduce((w,g)=>{const r={ukjent:0,usikker:1,trolig:2,manuell:3,sikker:4};return r[g.conf]<r[w]?g.conf:w},"sikker");
   const when=`${C.fmtDate(s.start,false)}${s.startKnown?"":"?"}<br>${C.fmtDate(s.end,false)}${s.endKnown?"":"?"}`;
   let html=`<div class="stay${sel?" sel":""}" role="button" tabindex="0" data-stay="${h(s.id)}" aria-expanded="${sel}">

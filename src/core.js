@@ -423,9 +423,11 @@ function rigTimeline(facId,wellbores){
   for(const s of sites){
     const by=(k)=>{const m=new Map();for(const w of s.wells)if(w[k])m.set(w[k],(m.get(w[k])||0)+1);return [...m.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||""};
     s.field=by("field");s.discovery=by("discovery");s.well=by("well")||s.wells[0].name;s.licence=by("licence");s.operator=by("operator");
-    // navn: felt eller funn; ellers lisensen. Brønnen står alltid i undertittelen.
+    // «Volvefeltet 15/9»: felt (eller funn) og blokk. Uten felt: «Blokk 8/5». Brønn og lisens i undertittelen.
     const pl=s.licence?"PL "+s.licence.replace(/^PL\s*/i,""):"";
-    s.name=titleCase(s.field||s.discovery||"")||pl||s.well;
+    s.block=(/^(\d+\/\d+)/.exec(s.well)||[])[1]||"";
+    const place=s.field?fieldWord(s.field):s.discovery?titleCase(s.discovery):"";
+    s.name=place?(s.block&&!/\d+\/\d+/.test(place)?place+" "+s.block:place):(s.block?"Blokk "+s.block:pl||s.well);
     s.sub=[s.well,pl].filter(x=>x&&x!==s.name).join(" · ");
     s.depth=s.wells.find(w=>w.depth!=null)?.depth??null;
     s.area=by("area");
@@ -439,7 +441,9 @@ function rigTimeline(facId,wellbores){
   }
   return {sites,visits,siteById:Object.fromEntries(sites.map(s=>[s.id,s]))};
 }
-function titleCase(s){return String(s||"").toLowerCase().replace(/(^|[\s\-\/(])([a-zæøå])/g,(m,a,b)=>a+b.toUpperCase())}
+function titleCase(s){return String(s||"").toLowerCase().replace(/(^|[\s\-\/(])([a-zæøå])/g,(m,a,b)=>a+b.toUpperCase()).replace(/\bMærsk\b/g,"Maersk")}
+/* «VOLVE» -> «Volvefeltet», «IVAR AASEN» -> «Ivar Aasen-feltet» */
+function fieldWord(f){const t=titleCase(f);return /[\s\d]/.test(t)?t+"-feltet":t+"feltet"}
 
 /* Hva het riggen på en dato? Navnet på brønnen nærmest i tid. */
 function nameAt(tl,date){
