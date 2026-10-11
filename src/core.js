@@ -287,6 +287,24 @@ function derivePlaces(legs){
   return out;
 }
 
+/* ---------- gamle navn ---------- */
+/* Rigger skifter navn (eier, oppkjøp), men det særegne ordet består: «Mærsk Interceptor» -> «Noble Interceptor».
+   Et ord som bare finnes i noen få innretningsnavn og som begge navn har felles, gir et forslag. */
+function buildIdf(names){
+  const df=new Map();for(const n of names)for(const t of new Set(tokens(n)))df.set(t,(df.get(t)||0)+1);
+  df.N=names.length||1;return df;
+}
+function idfScore(q,target,df){
+  const a=new Set(tokens(q)),b=new Set(tokens(target));if(!a.size||!b.size||!df)return 0;
+  // Det mest særegne ordet i søket (ord som ingen innretning har, sier ingenting) må finnes i navnet.
+  const known=[...a].filter(t=>(df.get(t)||0)>=1);if(!known.length)return 0;
+  const min=Math.min(...known.map(t=>df.get(t)));
+  const rare=known.filter(t=>df.get(t)===min&&b.has(t)&&t.length>=5&&min<=4);
+  if(!rare.length)return 0;
+  let inter=0;for(const t of a)if(b.has(t))inter++;
+  return Math.min(.85,.6+.25*inter/new Set([...a,...b]).size);
+}
+
 /* ---------- koder -> navn ---------- */
 /* Forslag til hva en kort kode står for: bokstavene i koden må forekomme i rekkefølge i navnet,
    og første bokstav må starte et ord. Brukes bare som forslag, aldri som automatisk kobling. */
@@ -456,6 +474,6 @@ function toCSV(rows,delim=";"){
 
 const api={DAY,pad,isoFromDate,toDay,fromDay,addDays,diffDays,todayIso,parseDate,fmtDate,clean,normName,tokens,nameScore,parseCSV,readXlsx,
   FIELDS,findHeaderRow,guessColumns,analyseTables,buildLegs,placeKey,derivePlaces,buildStays,normFacility,normWellbore,rowsToObjects,
-  codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,titleCase,toCSV,isSodirWellbore,isSodirFacility};
+  buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,titleCase,toCSV,isSodirWellbore,isSodirFacility};
 if(typeof module!=="undefined"&&module.exports)module.exports=api;else root.OK=api;
 })(typeof window!=="undefined"?window:globalThis);

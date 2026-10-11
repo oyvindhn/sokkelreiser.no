@@ -44,6 +44,8 @@ const D={
   fileWellbores:null,  // Map facId -> [wb] when loaded from a Sodir file
   wellbores:new Map(), // facId -> [wb]
   timelines:new Map(), // facId -> timeline
+  aliases:new Map(),   // facId -> tidligere navn (fra Sodirs brønnregister)
+  idf:null,
   pending:new Map(),
 };
 async function arcQuery(layer,params){
@@ -64,7 +66,27 @@ async function arcQuery(layer,params){
 }
 function setFacilities(list,status,stamp){
   D.facilities=list.filter(f=>f.name);D.facById=new Map(D.facilities.map(f=>[f.id,f]));
+  D.idf=C.buildIdf(D.facilities.map(f=>f.name));
   D.status=status;D.stamp=stamp||null;renderSource();
+}
+function namesOf(f){return [f.name,...(D.aliases.get(f.id)||[])]}
+/* Tidligere navn: Sodir registrerer navnet riggen hadde da brønnen ble boret. Henter alle forskjellige navn i ett kall. */
+async function loadAliases(force){
+  try{
+    let list=null;const cached=store.get("sodir:alias",null);
+    if(!force&&cached&&Date.now()-cached.ts<CACHE_DAYS*864e5)list=cached.list;
+    else{
+      const feats=await arcQuery(5000,{where:"wlbDrillingFacility IS NOT NULL",outFields:"wlbDrillingFacility,fclNpdidFacilityDrilling",returnDistinctValues:"true",returnGeometry:"false"});
+      list=feats.map(f=>f.attributes||{}).filter(a=>a.wlbDrillingFacility&&a.fclNpdidFacilityDrilling!=null).map(a=>[String(a.fclNpdidFacilityDrilling),C.clean(a.wlbDrillingFacility)]);
+      if(list.length)store.set("sodir:alias",{ts:Date.now(),list});
+    }
+    const m=new Map();
+    for(const [id,name] of list||[]){
+      const f=D.facById.get(id);if(!f||C.normName(f.name)===C.normName(name))continue;
+      if(!m.has(id))m.set(id,[]);if(!m.get(id).some(n=>C.normName(n)===C.normName(name)))m.get(id).push(name);
+    }
+    D.aliases=m;return m.size;
+  }catch(e){console.warn("Sodir tidligere navn",e);return 0}
 }
 async function loadFacilities(force){
   const cached=store.get("sodir:fac",null);
@@ -76,7 +98,7 @@ async function loadFacilities(force){
     if(!list.length)throw new Error("Tomt svar");
     store.set("sodir:fac",{ts:Date.now(),list});
     setFacilities(list,"live",Date.now());
-    if(force){for(const k of store.keys())if(k.startsWith("sodir:wb:"))store.del(k);D.wellbores.clear();D.timelines.clear()}
+    if(force){for(const k of store.keys())if(k.startsWith("sodir:wb:")||k==="sodir:alias")store.del(k);D.wellbores.clear();D.timelines.clear()}
     return true;
   }catch(e){
     console.warn("Sodir facilities",e);
@@ -148,9 +170,13 @@ function candidates(place,limit=6){
   const q=[place.nameHint,place.label,place.raw].filter(Boolean);
   const res=[];
   for(const f of D.facilities){
-    let sc=0;for(const s of q)sc=Math.max(sc,C.nameScore(s,f.name));
-    sc=Math.max(sc,C.codeScore(place.raw,f.name)*(f.moveable||f.phase==="IN SERVICE"?1:.9));
-    if(sc>=.45)res.push({f,sc});
+    let sc=0,via="";
+    for(const nm of namesOf(f)){
+      let s2=0;for(const s of q)s2=Math.max(s2,C.nameScore(s,nm),C.idfScore(s,nm,D.idf));
+      s2=Math.max(s2,C.codeScore(place.raw,nm)*(f.moveable||f.phase==="IN SERVICE"?1:.9));
+      if(s2>sc){sc=s2;via=nm===f.name?"":nm}
+    }
+    if(sc>=.45)res.push({f,sc,via});
   }
   res.sort((a,b)=>b.sc-a.sc||(a.f.phase==="IN SERVICE"?-1:1));
   return res.slice(0,limit);
@@ -417,7 +443,10 @@ function stayMapItems(){
 }
 let RIG=null; // {fac, tl}
 function rigMapItems(){
-  if(!RIG||!RIG.tl)return RIG&&RIG.fac&&RIG.fac.lat!=null?{markers:[{id:"F",lat:RIG.fac.lat,lon:RIG.fac.lon,shape:"square",r:8,conf:"sikker",sel:true,label:C.titleCase(RIG.fac.name)}],lines:[]}:{markers:[],lines:[]};
+  if(!RIG)return {markers:[],lines:[]};
+  const f0=RIG.fac;
+  if(!RIG.tl||!RIG.tl.visits.length)  // fast installasjon (eller rigg uten brønner): vis posisjonen fra Sodir
+    return f0.lat!=null?{markers:[{id:"F"+f0.id,lat:f0.lat,lon:f0.lon,shape:f0.moveable?"diamond":"square",r:9,conf:f0.moveable?"usikker":"sikker",sel:true,label:C.titleCase(f0.name)}],lines:[]}:{markers:[],lines:[]};
   const {tl}=RIG;const mine=mineSites();
   const markers=tl.sites.map(s=>{const days=s.wells.reduce((n,w)=>n+Math.max(1,C.diffDays(w.entry,w.comp||w.entry)),0);
     return {id:s.id,lat:s.lat,lon:s.lon,shape:"diamond",r:Math.min(14,4+Math.sqrt(days)*.6),conf:"sikker",muted:!mine.has(s.id),sel:S.ui.rigSel===s.id,dim:false,label:s.name,data:{site:s,rig:true}}});
@@ -527,6 +556,7 @@ function stayDetail(s){
       const st=g.site;
       html+=`<dl>
         <dt>Lokasjon</dt><dd><b>${h(st.name)}</b> ${pill(g.conf)}</dd>
+        ${st.kind==="mobile"&&g.visit&&g.visit.wells[0].facility&&C.normName(g.visit.wells[0].facility)!==C.normName(st.facilityName||"")?`<dt>Het da</dt><dd>${h(C.titleCase(g.visit.wells[0].facility))}</dd>`:""}
         ${st.kind==="mobile"?`<dt>Brønn</dt><dd class="mono">${h((g.visit?g.visit.wells:st.wells).map(w=>w.name).slice(0,6).join(", "))}${(g.visit?g.visit.wells:st.wells).length>6?" …":""}</dd>`:""}
         ${st.kind==="mobile"&&st.area?`<dt>Område</dt><dd>${h(C.titleCase(st.area))}</dd>`:""}
         ${st.depth!=null?`<dt>Havdyp</dt><dd class="mono">${st.depth} m</dd>`:""}
@@ -569,10 +599,13 @@ function facilitySuggest(input,{onPick,filter,boost}={}){
   const run=()=>{
     const q=input.value.trim();if(!q){box.hidden=true;input.setAttribute("aria-expanded","false");return}
     const nq=C.normName(q);
-    items=D.facilities.filter(f=>!filter||filter(f)).map(f=>{const n=C.normName(f.name);let sc=n.startsWith(nq)?1:n.includes(nq)?.85:C.nameScore(q,f.name);if(boost)sc+=boost(f);return {f,sc}})
+    items=D.facilities.filter(f=>!filter||filter(f)).map(f=>{
+        let sc=0,via="";
+        for(const nm of namesOf(f)){const n=C.normName(nm);const s2=n.startsWith(nq)?1:n.includes(nq)?.85:Math.max(C.nameScore(q,nm),C.idfScore(q,nm,D.idf));if(s2>sc){sc=s2;via=nm===f.name?"":nm}}
+        if(boost&&sc)sc+=boost(f);return {f,sc,via}})
       .filter(x=>x.sc>=.5).sort((a,b)=>b.sc-a.sc||a.f.name.localeCompare(b.f.name)).slice(0,10);
     if(!items.length){box.innerHTML=`<div class="small muted" style="padding:8px">${D.facilities.length?"Ingen treff i Sodir":"Sodir-data er ikke lastet"}</div>`;box.hidden=false;return}
-    hi=-1;box.innerHTML=items.map((x,i)=>`<button type="button" data-i="${i}"><span>${h(C.titleCase(x.f.name))}</span><small>${x.f.moveable?"Flyttbar":"Fast"}${x.f.kind?" · "+h(C.titleCase(x.f.kind)):""}</small></button>`).join("");
+    hi=-1;box.innerHTML=items.map((x,i)=>`<button type="button" data-i="${i}"><span>${h(C.titleCase(x.f.name))}${x.via?` <small>(tidl. ${h(C.titleCase(x.via))})</small>`:""}</span><small>${x.f.moveable?"Flyttbar":"Fast"}${x.f.kind?" · "+h(C.titleCase(x.f.kind)):""}</small></button>`).join("");
     box.hidden=false;input.setAttribute("aria-expanded","true");
     box.querySelectorAll("button").forEach(b=>b.addEventListener("mousedown",e=>{e.preventDefault();pick(+b.dataset.i)}));
   };
@@ -596,7 +629,7 @@ async function openRig(facId,date){
   const fac=D.facById.get(facId);if(!fac)return;
   RIG={fac,tl:null,loading:true};S.ui.rig=facId;S.ui.rigSel=null;if(date)S.ui.rigDate=date;
   switchTab("rig");
-  const tl=fac.moveable||true?await timelineFor(facId):null;
+  const tl=fac.moveable?await timelineFor(facId):null;
   if(!RIG||RIG.fac.id!==facId)return;
   RIG.tl=tl;RIG.loading=false;renderRig();updateMap();
   const ans=rigAnswer();if(ans&&ans.site){S.ui.rigSel=ans.site.id;renderRig();updateMap();chart.flyTo(ans.site.lat,ans.site.lon,7.2)}else fitToContent();
@@ -613,7 +646,8 @@ function renderRig(){
   if(!D.facilities.length)html+=`<div class="answer">${D.status==="loading"?"Henter innretninger fra Sodir …":"Sodir-data er ikke tilgjengelig akkurat nå. Last inn Sodir sin brønnbanetabell (CSV) via Importer, eller prøv igjen senere."}</div>`;
   if(RIG){
     const f=RIG.fac;
-    html+=`<div class="rig-head"><h2>${h(C.titleCase(f.name))}</h2><div class="muted">${f.moveable?"Flyttbar":"Fast"} innretning${f.kind?" · "+h(C.titleCase(f.kind)):""}${f.operator?" · "+h(f.operator):""}${f.url?` · <a href="${h(f.url)}" target="_blank" rel="noopener">Sodir ↗</a>`:""}</div></div>`;
+    const old=D.aliases.get(f.id)||[];
+    html+=`<div class="rig-head"><h2>${h(C.titleCase(f.name))}</h2>${old.length?`<div class="muted">Het tidligere ${old.map(n=>h(C.titleCase(n))).join(", ")}</div>`:""}<div class="muted">${f.moveable?"Flyttbar":"Fast"} innretning${f.kind?" · "+h(C.titleCase(f.kind)):""}${f.operator?" · "+h(f.operator):""}${f.url?` · <a href="${h(f.url)}" target="_blank" rel="noopener">Sodir ↗</a>`:""}</div></div>`;
     if(RIG.loading)html+=`<p class="muted">Henter brønnhistorikk fra Sodir …</p>`;
     else if(!RIG.tl||!RIG.tl.visits.length){
       html+=f.lat!=null?`<div class="answer">Fast posisjon: <b class="mono">${fmtPos(f.lat,f.lon)}</b></div>`:`<div class="answer">Sodir har ingen brønner registrert på denne innretningen. Boligrigger og fartøy borer ikke, så posisjonen deres finnes ikke her.</div>`;
@@ -653,7 +687,7 @@ function renderPlaces(){
     if(open)html+=placeEditor(p);
     else if(p.kind==="installation"&&!p.link&&D.facilities.length){
       const c=candidates(p,3);
-      html+=c.length?`<div class="chips"><span class="small muted" style="align-self:center">Forslag:</span>${c.map(x=>`<button class="chip" type="button" data-act="linkfac" data-key="${h(p.key)}" data-id="${h(x.f.id)}">${h(C.titleCase(x.f.name))} <span class="muted small">${x.f.moveable?"flyttbar":"fast"}</span></button>`).join("")}</div>`:"";
+      html+=c.length?`<div class="chips"><span class="small muted" style="align-self:center">Forslag:</span>${c.map(x=>`<button class="chip" type="button" data-act="linkfac" data-key="${h(p.key)}" data-id="${h(x.f.id)}">${h(C.titleCase(x.f.name))} <span class="muted small">${x.via?"tidl. "+h(C.titleCase(x.via)):x.f.moveable?"flyttbar":"fast"}</span></button>`).join("")}</div>`:"";
     }
     return html+`</div>`;
   };
@@ -677,7 +711,7 @@ function placeEditor(p){
     ${/^[^\s]{2,6}$/.test(p.raw)&&p.kind==="installation"?`<p class="small muted" style="margin:0">«${h(p.raw)}» er en kode fra MinDaVinci. Velg innretningen den står for. Er det en boligrigg uten egne brønner, velg innretningen den lå ved. Valget huskes i denne nettleseren, og kan lastes ned som kodeliste under «···».</p>`:""}
     <div class="field"><label for="placelabel">Navn i kartet</label><input class="input" id="placelabel" data-key="${h(p.key)}" value="${h(p.label)}"></div>
     ${p.kind==="installation"?`
-    ${c.length?`<div class="field"><label>Forslag fra Sodir</label><div class="chips">${c.map(x=>`<button class="chip${p.link&&p.link.type==="sodir"&&p.link.id===x.f.id?" on":""}" type="button" data-act="linkfac" data-key="${h(p.key)}" data-id="${h(x.f.id)}">${h(C.titleCase(x.f.name))} <span class="muted small">${x.f.moveable?"flyttbar":"fast"}</span></button>`).join("")}</div></div>`:""}
+    ${c.length?`<div class="field"><label>Forslag fra Sodir</label><div class="chips">${c.map(x=>`<button class="chip${p.link&&p.link.type==="sodir"&&p.link.id===x.f.id?" on":""}" type="button" data-act="linkfac" data-key="${h(p.key)}" data-id="${h(x.f.id)}">${h(C.titleCase(x.f.name))} <span class="muted small">${x.via?"tidl. "+h(C.titleCase(x.via)):x.f.moveable?"flyttbar":"fast"}</span></button>`).join("")}</div></div>`:""}
     <div class="field"><label for="placeq">Søk i Sodir</label>${rigSearchHtml("placeq","Skriv navnet på innretningen").replace('id="placeq"',`id="placeq" data-key="${h(p.key)}"`)}</div>
     ${others.length?`<div class="field"><label for="placefollow">Eller: lå ved en annen installasjon (f.eks. boligrigg)</label><select class="input" id="placefollow" data-key="${h(p.key)}"><option value="">Velg …</option>${others.map(o=>`<option value="${h(o.key)}"${p.link&&p.link.type==="follow"&&p.link.key===o.key?" selected":""}>${h(o.label)}</option>`).join("")}</select></div>`:""}
     <div class="row" style="display:flex;flex-wrap:wrap;gap:6px">
@@ -817,7 +851,7 @@ document.addEventListener("click",async e=>{
     const koder={};for(const p of Object.values(S.places))if(p.link&&p.link.type==="sodir"){const f=D.facById.get(p.link.id);if(f)koder[p.raw]={sodirId:f.id,navn:f.name}}
     download("koder.json",JSON.stringify({app:"sokkelreiser",version:1,koder},null,2),"application/json");
   }
-  else if(act==="sodir"){const ok=await loadFacilities(true);if(ok){autoLink();persist();await recompute();toast("Sodir-data er oppdatert.")}else toast("Fikk ikke kontakt med Sodir.")}
+  else if(act==="sodir"){const ok=await loadFacilities(true);if(ok){await loadAliases(true);autoLink();persist();await recompute();toast("Sodir-data er oppdatert.")}else toast("Fikk ikke kontakt med Sodir.")}
   else if(act==="clear")confirmDialog("Slette alle data?","Reiseloggen, koblingene og lagret Sodir-data fjernes fra denne nettleseren. Lagre en prosjektfil først hvis du vil beholde arbeidet.","Slett alt",()=>{for(const k of store.keys())store.del(k);location.reload()});
   else if(act==="openrig")openRig(b.dataset.id,b.dataset.date);
   else if(act==="pickstay")startPick("stay",b.dataset.id,"Klikk der du var på denne turen");
@@ -898,5 +932,6 @@ if(document.fonts&&document.fonts.ready)document.fonts.ready.then(themeObs);
   if(autoLink()+applyCodeList())persist();
   await recompute();
   if(STAYS.length)fitToContent();
+  if(D.facilities.length&&await loadAliases(false)){if(autoLink())persist();await recompute();if(S.ui.tab==="rig")renderRig()}
 })();
 })();

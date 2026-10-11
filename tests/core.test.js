@@ -147,3 +147,12 @@ test("dato og klokkeslett i samme celle, og innsjekking som klokkeslett", () => 
   assert.equal(l.cancelled, false);
   assert.equal(C.fmtTime(0.40486), "09:43");
 });
+
+test("gammelt rigg-navn gir forslag til nytt navn, men ikke på felles merkenavn", () => {
+  const names = ["NOBLE INTERCEPTOR", "MAERSK GUARDIAN", "MAERSK GIANT", "NOBLE GUARDIAN", "TRANSOCEAN SPITSBERGEN", "TRANSOCEAN ENDURANCE", "TRANSOCEAN LEADER", "TRANSOCEAN ENCOURAGE", "TRANSOCEAN BARENTS", "OTHER RIG", "ALPHA FIELD", "BRAVO FIELD"];
+  const df = C.buildIdf(names);
+  assert.ok(C.idfScore("Maersk Interceptor", "NOBLE INTERCEPTOR", df) >= 0.5);
+  assert.ok(C.idfScore("Maersk Interceptor", "NOBLE INTERCEPTOR", df) < 0.9, "bare forslag, aldri automatisk");
+  assert.equal(C.idfScore("Transocean Arctic", "TRANSOCEAN ENDURANCE", df), 0);   // felles merkenavn er ikke nok
+  assert.equal(C.idfScore("Maersk Interceptor", "MAERSK GIANT", df), 0);
+});
