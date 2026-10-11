@@ -427,7 +427,9 @@ function rigTimeline(facId,wellbores){
     const pl=s.licence?"PL "+s.licence.replace(/^PL\s*/i,""):"";
     s.block=(/^(\d+\/\d+)/.exec(s.well)||[])[1]||"";
     // funnet brønnen ble boret på (datidens navn, f.eks. Langfjellet) går foran dagens felt (Hugin Satellitter)
-    const disc=s.discovery&&!/^\d/.test(s.discovery)?s.discovery:"";
+    // Sodir: «25/2-18 S (LANGFJELLET)» -> Langfjellet. Bare et brønnummer gir ikke noe navn.
+    const par=/\(([^)]+)\)/.exec(s.discovery||"");
+    const disc=par?par[1].trim():s.discovery&&!/^\d/.test(s.discovery)?s.discovery:"";
     const place=disc?(s.field&&normName(s.field)===normName(disc)?fieldWord(s.field):titleCase(disc)):s.field?fieldWord(s.field):"";
     s.place=place;
     s.name=place?(s.block&&!/\d+\/\d+/.test(place)?place+" – "+s.block:place):(s.block?"Blokk "+s.block:pl||s.well);

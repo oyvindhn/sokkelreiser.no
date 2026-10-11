@@ -220,4 +220,5 @@ test("datidens funnavn går foran dagens feltnavn", () => {
   assert.equal(C.rigTimeline("5", [w("LANGFJELLET", "HUGIN SATELLITTER")]).sites[0].name, "Langfjellet – 25/2");
   assert.equal(C.rigTimeline("5", [w("SKARV", "SKARV")]).sites[0].name, "Skarvfeltet – 25/2");
   assert.equal(C.rigTimeline("5", [w("25/2-18 S", "HUGIN")]).sites[0].name, "Huginfeltet – 25/2");
+  assert.equal(C.rigTimeline("5", [w("25/2-18 S (LANGFJELLET)", "HUGIN SATELLITTER")]).sites[0].name, "Langfjellet – 25/2");
 });

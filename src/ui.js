@@ -569,8 +569,12 @@ function stayMapItems(){
     const dim=!inYear(st,y);
     for(const sg of st.segs){
       if(!sg.site)continue;
-      const k=sg.site.id;if(!agg.has(k))agg.set(k,{site:sg.site,days:0,stays:new Set(),conf:"ukjent",dim:true,sel:false});
-      const a=agg.get(k);if(!dim){a.days+=Math.max(1,C.diffDays(sg.start,sg.end));a.dim=false}a.stays.add(st.id);
+      const k=sg.site.id;if(!agg.has(k))agg.set(k,{site:sg.site,days:0,stays:new Set(),conf:"ukjent",dim:true,sel:false,rigs:new Map()});
+      const a=agg.get(k);
+      { // hvem lå her: riggens navn da (rigger) eller installasjonens navn (faste, boligrigger)
+        const p=S.places[st.key],nm=sg.thenName?C.titleCase(sg.thenName):sg.site.kind==="fixed"&&p&&p.link&&p.link.type==="sodir"&&p.link.id===sg.site.facilityId?sg.site.name:p?p.label:st.key;
+        if(!dim||!a.rigs.size)a.rigs.set(C.normName(nm),nm);
+      }if(!dim){a.days+=Math.max(1,C.diffDays(sg.start,sg.end));a.dim=false}a.stays.add(st.id);
       if(rank[sg.conf]>rank[a.conf])a.conf=sg.conf;
       if(S.ui.sel===st.id)a.sel=true;
       if(sg.site.kind==="mobile"&&!dim){const f=sg.site.facilityId;if(!rigSeq.has(f))rigSeq.set(f,[]);const arr=rigSeq.get(f);if(arr[arr.length-1]!==sg.site)arr.push(sg.site)}
@@ -596,7 +600,9 @@ function stayMapItems(){
       for(const s of [a,b])if(s.kind==="port"){const pt=ports.get(s.id)||{site:s,n:0,dim:true};pt.n++;if(!dim)pt.dim=false;ports.set(s.id,pt)}
     }
   }
-  const markers=[...agg.values()].map(a=>({id:a.site.id,lat:a.site.lat,lon:a.site.lon,r:PIN,conf:a.conf,sel:a.sel,dim:a.dim,label:a.site.name,days:a.days,data:a}));
+  const mapLabel=a=>{const rigs=[...a.rigs.values()];if(a.site.kind==="fixed"){const own=[a.site.name,...rigs.filter(r=>C.normName(r)!==C.normName(a.site.name))];return own.join(" / ")}
+    return (rigs.length?rigs.join(" / ")+" – ":"")+a.site.name};
+  const markers=[...agg.values()].map(a=>({id:a.site.id,lat:a.site.lat,lon:a.site.lon,r:PIN,conf:a.conf,sel:a.sel,dim:a.dim,label:mapLabel(a),days:a.days,data:a}));
   for(const pt of ports.values())markers.push({id:pt.site.id,lat:pt.site.lat,lon:pt.site.lon,r:4,port:true,dim:pt.dim,label:pt.site.name,data:{port:true,n:pt.n,site:pt.site}});
   return {markers,lines,routes:[...routes.values()]};
 }
@@ -726,6 +732,7 @@ function stayDetail(s){
       html+=`<dl>
         <dt>Lokasjon</dt><dd><b>${h(st.name)}</b> ${pill(g.conf)}</dd>
         ${g.thenName&&C.normName(g.thenName)!==C.normName(st.facilityName||"")?`<dt>Het da</dt><dd>${h(C.titleCase(g.thenName))} <span class="muted">(nå ${h(C.titleCase(st.facilityName))})</span></dd>`:""}
+        ${st.discovery?`<dt>Funn</dt><dd>${h(C.titleCase(st.discovery))}</dd>`:""}
         ${st.licence?`<dt>Lisens</dt><dd>PL ${h(st.licence.replace(/^PL\s*/i,""))}${st.operator?` · ${h(C.titleCase(st.operator))}`:""}</dd>`:""}
         ${st.kind==="mobile"?`<dt>Brønn</dt><dd class="mono">${h((g.visit?g.visit.wells:st.wells).map(w=>w.name).slice(0,6).join(", "))}${(g.visit?g.visit.wells:st.wells).length>6?" …":""}</dd>`:""}
         ${st.kind==="mobile"&&st.area?`<dt>Område</dt><dd>${h(C.titleCase(st.area))}</dd>`:""}
