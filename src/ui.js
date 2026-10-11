@@ -138,7 +138,8 @@ async function getWellbores(facId){
   if(D.pending.has(facId))return D.pending.get(facId);
   const fac=D.facById.get(facId);
   const where=/^\d+$/.test(facId)?`fclNpdidFacilityDrilling=${facId}`:`wlbDrillingFacility='${(fac?fac.name:"").replace(/'/g,"''")}'`;
-  const pr=arcQuery(5000,{where,outFields:WB_FIELDS,returnGeometry:"true",orderByFields:"wlbEntryDate"})
+  const q=fields=>arcQuery(5000,{where,outFields:fields,returnGeometry:"true",orderByFields:"wlbEntryDate"});
+  const pr=q("*").catch(()=>q(WB_FIELDS))
     .then(feats=>{const list=feats.map(f=>C.normWellbore(f.attributes||{},f.geometry));store.set("sodir:wb:"+facId,{ts:Date.now(),list});D.wellbores.set(facId,list);return list})
     .catch(e=>{console.warn("Sodir wellbores",e);if(cached){D.wellbores.set(facId,cached.list);return cached.list}return null})
     .finally(()=>D.pending.delete(facId));
@@ -307,9 +308,12 @@ function allStays(){
   return s;
 }
 function fixedSite(f){return {id:"F"+f.id,lat:f.lat,lon:f.lon,name:C.titleCase(f.name),sub:f.kind?C.titleCase(f.kind):"",kind:"fixed",facilityId:f.id,url:f.url}}
+/* Innretninger Sodir regner som faste, men som kan flyttes (f.eks. Mærsk Inspirer: Volve, så Yme). */
+const MOVABLE_KIND=/JACK|MOPU|SEMISUB|VESSEL|SHIP|DRILL/i,FLOATING_KIND=/FPSO|FSO|FPU/i;
+function hasHistory(f){return MOVABLE_KIND.test(f.kind)||FLOATING_KIND.test(f.kind)||!!(D.actRows&&D.actRows.has(f.id))}
 async function prefetchForStays(stays){
   const ids=new Set();
-  const want=(key,depth=0)=>{const p=S.places[key];if(!p||!p.link||depth>3)return;if(p.link.type==="sodir"){const f=D.facById.get(p.link.id);if(f&&f.moveable)ids.add(f.id)}if(p.link.type==="follow")want(p.link.key,depth+1)};
+  const want=(key,depth=0)=>{const p=S.places[key];if(!p||!p.link||depth>3)return;if(p.link.type==="sodir"){const f=D.facById.get(p.link.id);if(f&&(f.moveable||hasHistory(f)))ids.add(f.id)}if(p.link.type==="follow")want(p.link.key,depth+1)};
   for(const s of stays)want(s.key);
   await Promise.all([...ids].map(id=>timelineFor(id)));
 }
@@ -335,9 +339,25 @@ function resolveStay(stay,key=stay.key,depth=0){
       if(nb){const r=resolveStay(stay,nb,depth+1);if(r.some(s=>s.site))return r.map(s=>({...s,conf:s.conf==="sikker"?"trolig":s.conf,note:`${C.titleCase(f.name)} har ingen egne brønner. Lå trolig ved ${labelOf(nb)}, som du fløy til og fra. `+s.note}))}
     }
     if(!tl.visits.length&&f.lat!=null)return [{site:fixedSite(f),start:stay.start,end:stay.end,conf:"usikker",note:"Riggen har ingen brønner hos Sodir. Viser sist registrerte posisjon."}];
-    return C.locateOnRig(tl,stay.start,stay.end).map(s=>({...s,site:s.site?{...s.site,facilityName:f.name}:null,note:s.note}));
+    const thenName=C.nameAt(tl,stay.start);
+    return C.locateOnRig(tl,stay.start,stay.end).map(s=>({...s,thenName,site:s.site?{...s.site,facilityName:f.name}:null,note:s.note}));
+  }
+  // «fast» innretning: har den boret brønner, viser brønnregisteret hvor den lå på den tiden
+  const tl=D.timelines.get(f.id);
+  if(tl&&tl.visits.length){
+    const thenName=C.nameAt(tl,stay.start);
+    const r=C.locateOnRig(tl,stay.start,stay.end);
+    if(r.every(g=>g.site&&g.conf==="sikker"))return r.map(g=>({...g,thenName,site:{...g.site,facilityName:f.name,url:f.url},note:"Innretningen boret her i perioden."}));
+    // mellom brønner: produksjonsenheten ligger der den sist boret, til den borer et annet sted
+    let prev=null,next=null;for(const v of tl.visits){if(v.start<=stay.start)prev=v;else if(!next)next=v}
+    const v=prev||next;
+    if(v){const site=tl.siteById[v.site],far=f.lat!=null&&C.haversineKm([site.lat,site.lon],[f.lat,f.lon])>5;
+      if(far||!prev)return [{site:{...site,facilityName:f.name,url:f.url},start:stay.start,end:stay.end,conf:prev?"trolig":"usikker",thenName,
+        note:prev?`Innretningen boret sist her (${v.start.slice(0,4)}–${v.end.slice(0,4)}) og lå trolig her fortsatt. I dag ligger den et annet sted.`:`Første kjente brønn fra innretningen ble boret her i ${v.start.slice(0,4)}.`}]}
   }
   if(f.lat==null)return [{site:null,start:stay.start,end:stay.end,conf:"ukjent",note:"Sodir har ingen posisjon for denne innretningen."}];
+  if(MOVABLE_KIND.test(f.kind))return [{site:fixedSite(f),start:stay.start,end:stay.end,conf:"usikker",note:"Dagens posisjon. Innretningen kan flyttes, og Sodir har ingen brønner som viser hvor den lå da."}];
+  if(FLOATING_KIND.test(f.kind))return [{site:fixedSite(f),start:stay.start,end:stay.end,conf:"trolig",note:"Dagens posisjon. Flytende innretninger kan ha ligget et annet sted tidligere."}];
   return [{site:fixedSite(f),start:stay.start,end:stay.end,conf:"sikker",note:"Fast innretning."}];
 }
 function labelOf(key){const p=S.places[key];return p?p.label:key}
@@ -659,6 +679,12 @@ function renderStays(){
   v.querySelectorAll(".hist .bar").forEach(b=>b.addEventListener("click",()=>{const yy=+b.dataset.year;S.ui.year=S.ui.year===yy?null:yy;S.ui.sel=null;renderStays();updateMap();fitToContent()}));
   const sel=v.querySelector(".stay.sel");if(sel&&renderStays.scroll){sel.scrollIntoView({block:"nearest"});renderStays.scroll=false}
 }
+/* Navnet installasjonen hadde da du var der, med dagens navn i parentes. */
+function instTitle(s,p){
+  const now=p?p.label:s.key,then=(s.segs.find(g=>g.thenName)||{}).thenName;
+  if(then&&C.normName(then)!==C.normName(now)&&!(p&&p.labelEdited))return `${h(C.titleCase(then))} <span class="now">nå ${h(now)}</span>`;
+  return h(now);
+}
 function stayRow(s){
   const sel=S.ui.sel===s.id;const p=S.places[s.key];
   const segs=s.segs;const first=segs.find(g=>g.site)||segs[0];
@@ -667,7 +693,7 @@ function stayRow(s){
   const when=`${C.fmtDate(s.start,false)}${s.startKnown?"":"?"}<br>${C.fmtDate(s.end,false)}${s.endKnown?"":"?"}`;
   let html=`<div class="stay${sel?" sel":""}" role="button" tabindex="0" data-stay="${h(s.id)}" aria-expanded="${sel}">
     <div class="when">${when}</div>
-    <div class="what"><div class="inst">${h(p?p.label:s.key)}</div><div class="where">${h(where)} ${pill(conf)}</div></div>
+    <div class="what"><div class="inst">${instTitle(s,p)}</div><div class="where">${h(where)} ${pill(conf)}</div></div>
     <div class="days">${s.days}<small>døgn</small></div>`;
   if(sel)html+=stayDetail(s);
   return html+`</div>`;
@@ -681,7 +707,8 @@ function stayDetail(s){
       const st=g.site;
       html+=`<dl>
         <dt>Lokasjon</dt><dd><b>${h(st.name)}</b> ${pill(g.conf)}</dd>
-        ${st.kind==="mobile"&&g.visit&&g.visit.wells[0].facility&&C.normName(g.visit.wells[0].facility)!==C.normName(st.facilityName||"")?`<dt>Het da</dt><dd>${h(C.titleCase(g.visit.wells[0].facility))}</dd>`:""}
+        ${g.thenName&&C.normName(g.thenName)!==C.normName(st.facilityName||"")?`<dt>Het da</dt><dd>${h(C.titleCase(g.thenName))} <span class="muted">(nå ${h(C.titleCase(st.facilityName))})</span></dd>`:""}
+        ${st.licence?`<dt>Lisens</dt><dd>PL ${h(st.licence.replace(/^PL\s*/i,""))}${st.operator?` · ${h(C.titleCase(st.operator))}`:""}</dd>`:""}
         ${st.kind==="mobile"?`<dt>Brønn</dt><dd class="mono">${h((g.visit?g.visit.wells:st.wells).map(w=>w.name).slice(0,6).join(", "))}${(g.visit?g.visit.wells:st.wells).length>6?" …":""}</dd>`:""}
         ${st.kind==="mobile"&&st.area?`<dt>Område</dt><dd>${h(C.titleCase(st.area))}</dd>`:""}
         ${st.depth!=null?`<dt>Havdyp</dt><dd class="mono">${st.depth} m</dd>`:""}
@@ -697,7 +724,8 @@ function stayDetail(s){
   }
   const legs=s.legs.filter(Boolean);
   if(legs.length){
-    const nm=x=>{const p=S.places[C.placeKey(x)];return p&&p.label&&C.normName(p.label)!==C.normName(x)?`${p.label} (${x})`:x};
+    const then=(s.segs.find(g=>g.thenName)||{}).thenName,thenOk=then&&!(S.places[s.key]||{}).labelEdited;
+    const nm=x=>{const k=C.placeKey(x),p=S.places[k];const lab=k===s.key&&thenOk?C.titleCase(then):p&&p.label;return lab&&C.normName(lab)!==C.normName(x)?`${lab} (${x})`:x};
     const line=l=>{
       const t=[l.dep,l.arr].filter(Boolean).join("–");
       const ci=l.checked?(/^\d{1,2}:\d{2}$/.test(l.checked)?"Sjekket inn "+l.checked:/^(nei|no|n|false|0)$/i.test(l.checked)?"Ikke sjekket inn":"Sjekket inn"):"";
@@ -754,7 +782,7 @@ async function openRig(facId,date){
   const fac=D.facById.get(facId);if(!fac)return;
   RIG={fac,tl:null,loading:true};S.ui.rig=facId;S.ui.rigSel=null;if(date)S.ui.rigDate=date;
   switchTab("rig");
-  const tl=fac.moveable?await timelineFor(facId):null;
+  const tl=fac.moveable||hasHistory(fac)?await timelineFor(facId):null;
   if(!RIG||RIG.fac.id!==facId)return;
   RIG.tl=tl;RIG.loading=false;renderRig();updateMap();
   const ans=rigAnswer();if(ans&&ans.site){S.ui.rigSel=ans.site.id;renderRig();updateMap();chart.flyTo(ans.site.lat,ans.site.lon,7.2)}else fitToContent();

@@ -398,6 +398,7 @@ function normWellbore(a,geom){
   return {name:clean(a.wlbWellboreName),well:clean(a.wlbWell),entry:parseDate(a.wlbEntryDate),comp:parseDate(a.wlbCompletionDate),
     field:clean(a.wlbField),discovery:clean(a.wlbDiscovery),purpose:clean(a.wlbPurpose),type:clean(a.wlbWellType),status:clean(a.wlbStatus),
     content:clean(a.wlbContent),depth:a.wlbWaterDepth!=null&&a.wlbWaterDepth!==""?+a.wlbWaterDepth:null,area:clean(a.wlbMainArea),url:clean(a.wlbFactPageUrl),
+    licence:clean(a.wlbProductionLicence),operator:clean(a.wlbDrillingOperator),
     facility:clean(a.wlbDrillingFacility),facilityId:a.fclNpdidFacilityDrilling!=null&&a.fclNpdidFacilityDrilling!==""?String(a.fclNpdidFacilityDrilling):"name:"+normName(a.wlbDrillingFacility),
     moveable:/MOV/i.test(a.wlbDrillingFacilityFixedOrMove||""),facilityKind:clean(a.wlbFacilityTypeDrilling),
     lat:pos?+pos[0].toFixed(5):null,lon:pos?+pos[1].toFixed(5):null};
@@ -421,9 +422,11 @@ function rigTimeline(facId,wellbores){
   }
   for(const s of sites){
     const by=(k)=>{const m=new Map();for(const w of s.wells)if(w[k])m.set(w[k],(m.get(w[k])||0)+1);return [...m.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||""};
-    s.field=by("field");s.discovery=by("discovery");s.well=by("well")||s.wells[0].name;
-    s.name=titleCase(s.field||s.discovery||"")||s.well;
-    s.sub=s.field||s.discovery?s.well:"";
+    s.field=by("field");s.discovery=by("discovery");s.well=by("well")||s.wells[0].name;s.licence=by("licence");s.operator=by("operator");
+    // navn: felt eller funn; ellers lisensen. Brønnen står alltid i undertittelen.
+    const pl=s.licence?"PL "+s.licence.replace(/^PL\s*/i,""):"";
+    s.name=titleCase(s.field||s.discovery||"")||pl||s.well;
+    s.sub=[s.well,pl].filter(x=>x&&x!==s.name).join(" · ");
     s.depth=s.wells.find(w=>w.depth!=null)?.depth??null;
     s.area=by("area");
   }
@@ -438,6 +441,12 @@ function rigTimeline(facId,wellbores){
 }
 function titleCase(s){return String(s||"").toLowerCase().replace(/(^|[\s\-\/(])([a-zæøå])/g,(m,a,b)=>a+b.toUpperCase())}
 
+/* Hva het riggen på en dato? Navnet på brønnen nærmest i tid. */
+function nameAt(tl,date){
+  if(!tl||!tl.visits.length||!date)return "";const d=toDay(date);let best=null,bd=Infinity;
+  for(const v of tl.visits)for(const w of v.wells){if(!w.facility)continue;const a=toDay(w.entry),b=toDay(w.comp||w.entry);const g=d<a?a-d:d>b?d-b:0;if(g<bd){bd=g;best=w.facility}}
+  return bd<=730?best:"";
+}
 /* Where was rig X between start and end?  -> segments with confidence. */
 function locateOnRig(tl,start,end){
   if(!tl||!tl.visits.length)return [{site:null,start,end,conf:"ukjent",note:"Sodir har ingen brønner registrert på denne riggen."}];
@@ -553,7 +562,7 @@ function toCSV(rows,delim=";"){
 
 const api={DAY,pad,isoFromDate,toDay,fromDay,addDays,diffDays,todayIso,parseDate,fmtDate,clean,normName,tokens,nameScore,parseCSV,readXlsx,
   FIELDS,findHeaderRow,guessColumns,analyseTables,buildLegs,placeKey,derivePlaces,buildStays,normFacility,normWellbore,rowsToObjects,
-  buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,titleCase,toCSV,isSodirWellbore,isSodirFacility,
+  buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,nameAt,titleCase,toCSV,isSodirWellbore,isSodirFacility,
   activityByFacility,dateFit,neighbours,pickAuto,heliport,flightHints,flightFit};
 if(typeof module!=="undefined"&&module.exports)module.exports=api;else root.OK=api;
 })(typeof window!=="undefined"?window:globalThis);

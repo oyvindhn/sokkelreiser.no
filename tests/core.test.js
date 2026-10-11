@@ -194,3 +194,16 @@ test("flytid fra heliporten skiller felt med lik kode", () => {
   assert.equal(C.flightFit([65.72, 7.64], C.flightHints([{ from: "XYZ", to: "SKV" }], "SKV")), 0, "ukjent base: ingen vurdering");
   assert.ok(C.heliport("bnn") && C.heliport("ENZV"));
 });
+
+test("riggens navn på datoen og lisens i lokasjonsnavnet", () => {
+  const wb = (name, e, c, fac, field, lic) => C.normWellbore({ wlbWellboreName: name, wlbWell: name, wlbEntryDate: Date.parse(e), wlbCompletionDate: Date.parse(c), wlbNsDecDeg: 57, wlbEwDecDeg: 2 + name.length / 10, wlbField: field, wlbProductionLicence: lic, wlbDrillingFacility: fac, fclNpdidFacilityDrilling: 5 });
+  const tl = C.rigTimeline("5", [wb("8/5-1", "2016-03-01", "2016-05-20", "MÆRSK INTERCEPTOR", "", "571"), wb("7/4-3XX", "2022-01-01", "2022-03-01", "NOBLE INTERCEPTOR", "BRYNHILD", "148")]);
+  assert.equal(C.nameAt(tl, "2016-04-01"), "MÆRSK INTERCEPTOR");
+  assert.equal(C.nameAt(tl, "2022-02-01"), "NOBLE INTERCEPTOR");
+  const s1 = tl.sites.find((s) => s.well === "8/5-1");
+  assert.equal(s1.name, "PL 571");
+  assert.equal(s1.sub, "8/5-1");
+  const s2 = tl.sites.find((s) => s.field === "BRYNHILD");
+  assert.equal(s2.name, "Brynhild");
+  assert.equal(s2.sub, "7/4-3XX · PL 148");
+});
