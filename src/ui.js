@@ -268,12 +268,19 @@ let NEIGH=new Map();
 /* Kodeliste: koder som tidligere er koblet (koder.json ligger ved siden av siden og kan utvides). */
 let CODES={};
 async function loadCodeList(){try{const r=await fetch("koder.json",{cache:"no-cache"});if(!r.ok)return;const j=await r.json();CODES=(j&&j.koder)||{}}catch(_){}}
+/* «SKARV» i kodelisten skal treffe «SKARV FPSO» hos Sodir. Faste og i drift foretrekkes. */
+function looseName(navn){
+  const n=C.normName(navn||"");if(!n)return null;
+  const hits=D.facilities.filter(f=>{const m=C.normName(f.name);return m.startsWith(n+" ")||m.endsWith(" "+n)});
+  hits.sort((a,b)=>(a.moveable-b.moveable)||((b.phase==="IN SERVICE")-(a.phase==="IN SERVICE"))||a.name.length-b.name.length);
+  return hits[0]||null;
+}
 function applyCodeList(){
   if(!D.facilities.length)return 0;let n=0;
   const byName=new Map(D.facilities.map(f=>[C.normName(f.name),f]));
   for(const k in CODES){
     const p=S.places[C.placeKey(k)];if(!p||(p.link&&!p.auto)||(p.kindEdited&&p.kind==="base"))continue;   // kodelisten går foran automatiske koblinger
-    const e=CODES[k]||{};const f=(e.sodirId&&D.facById.get(String(e.sodirId)))||byName.get(C.normName(e.navn||""));
+    const e=CODES[k]||{};const f=(e.sodirId&&D.facById.get(String(e.sodirId)))||byName.get(C.normName(e.navn||""))||looseName(e.navn);
     if(!f)continue;
     p.link={type:"sodir",id:f.id};p.auto=false;p.kind="installation";if(!p.labelEdited)p.label=C.titleCase(f.name);n++;
   }
