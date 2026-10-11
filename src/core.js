@@ -467,6 +467,85 @@ function locateOnRig(tl,start,end){
   return [{site:tl.siteById[use.site],start,end,conf,note}];
 }
 
+/* ---------- automatisk kobling ---------- */
+/* Boreaktivitet per rigg: [{id,entry,comp}] -> Map id -> sammenslåtte perioder [{s,e}] (dagnummer). */
+function activityByFacility(rows,gap=45){
+  const by=new Map();
+  for(const r of rows){
+    if(!r.id||!r.entry)continue;const s=toDay(r.entry);if(isNaN(s))continue;
+    let e=r.comp?toDay(r.comp):s+60;if(isNaN(e)||e<s)e=s+60;
+    if(!by.has(r.id))by.set(r.id,[]);by.get(r.id).push({s,e});
+  }
+  for(const [id,l] of by){
+    l.sort((a,b)=>a.s-b.s);const m=[];
+    for(const iv of l){const last=m[m.length-1];if(last&&iv.s<=last.e+gap)last.e=Math.max(last.e,iv.e);else m.push({...iv})}
+    by.set(id,m);
+  }
+  return by;
+}
+/* Andel av oppholdene som faller i en periode der riggen boret. null = ingenting å vurdere. */
+function dateFit(intervals,stays,margin=21){
+  const st=stays.filter(s=>s.start);if(!st.length||!intervals)return null;
+  let hit=0;
+  for(const s of st){const a=toDay(s.start),b=toDay(s.end||s.start);if(intervals.some(iv=>a<=iv.e+margin&&b>=iv.s-margin))hit++}
+  return hit/st.length;
+}
+/* Installasjoner som det er fløyet direkte mellom (skytteltrafikk). key -> Map(annen key -> antall) */
+function neighbours(legs,kindOf){
+  const m=new Map();const add=(a,b)=>{if(!m.has(a))m.set(a,new Map());m.get(a).set(b,(m.get(a).get(b)||0)+1)};
+  for(const l of legs){
+    if(l.cancelled||!l.from||!l.to)continue;const a=placeKey(l.from),b=placeKey(l.to);
+    if(a===b||kindOf(a)!=="installation"||kindOf(b)!=="installation")continue;add(a,b);add(b,a);
+  }
+  return m;
+}
+/* Heliporter som betjener sokkelen (offentlige flyplasskoder, IATA og ICAO). Brukes bare til å anslå hvor langt ut en installasjon ligger. */
+const HELIPORTS={SVG:[58.877,5.638],ENZV:[58.877,5.638],BGO:[60.294,5.218],ENBR:[60.294,5.218],FRO:[61.584,5.025],ENFL:[61.584,5.025],
+  KSU:[63.112,7.825],ENKB:[63.112,7.825],BNN:[65.461,12.217],ENBN:[65.461,12.217],SSJ:[65.957,12.469],ENST:[65.957,12.469],
+  BOO:[67.269,14.365],ENBO:[67.269,14.365],EVE:[68.491,16.678],ENEV:[68.491,16.678],HFT:[70.680,23.669],ENHF:[70.680,23.669],
+  TOS:[69.683,18.919],ENTC:[69.683,18.919],TRD:[63.458,10.924],ENVA:[63.458,10.924],MOL:[62.745,7.263],ENML:[62.745,7.263],
+  AES:[62.562,6.120],ENAL:[62.562,6.120],HAU:[59.345,5.208],ENHD:[59.345,5.208],ABZ:[57.202,-2.198],EGPD:[57.202,-2.198],
+  SUM:[59.879,-1.296],EGPB:[59.879,-1.296],ESB:[55.509,8.553],EKEB:[55.509,8.553],DHR:[52.923,4.781],EHKD:[52.923,4.781]};
+function heliport(code){return HELIPORTS[normName(code).replace(/ /g,"")]||null}
+function minutesOf(t){const m=/^(\d{1,2}):(\d{2})$/.exec(t||"");return m?+m[1]*60+ +m[2]:null}
+/* Flyturer mellom en installasjon og en kjent heliport: [{base:[lat,lon], km:anslått avstand eller null}] */
+function flightHints(legs,key){
+  const out=[];
+  for(const l of legs){
+    if(l.cancelled||!l.from||!l.to)continue;
+    const a=placeKey(l.from),b=placeKey(l.to);let other=null;
+    if(a===key)other=l.to;else if(b===key)other=l.from;else continue;
+    const base=heliport(other);if(!base)continue;
+    const d=minutesOf(l.dep),r=minutesOf(l.arr);let km=null;
+    if(d!=null&&r!=null){const min=r-d;if(min>=15&&min<=200)km=Math.max(0,(min-10)/60*250)} // ~250 km/t, ~10 min til av-/pålanding
+    out.push({base,km});
+  }
+  return out;
+}
+/* Hvor godt passer en posisjon med flyturene? +: passer, −: umulig, 0: ingenting å vurdere */
+function flightFit(pos,hints){
+  if(!pos||!hints.length)return 0;
+  const timed=hints.filter(h=>h.km!=null);
+  if(timed.length){
+    const est=Math.min(...timed.map(h=>h.km));const h=timed.find(x=>x.km===est);
+    const d=haversineKm(h.base,pos);
+    if(Math.abs(d-est)<=Math.max(60,est*.35))return 1;
+    if(d>est*1.8+80||d<est*.4-60)return -1;
+    return 0;
+  }
+  const d=Math.min(...hints.map(h=>haversineKm(h.base,pos)));
+  return d>650?-1:0;
+}
+/* Velger beste kandidat når den skiller seg tydelig ut. cands: [{sc,lat,lon}] sortert synkende. */
+function pickAuto(cands,{min=.5,margin=.08,sameKm=5}={}){
+  const [a,b]=cands;if(!a||a.sc<min)return null;
+  if(!b||a.sc-b.sc>=margin)return a;
+  // nesten likt, men på samme sted (f.eks. to innretninger på samme felt): posisjonen blir lik uansett
+  const same=cands.filter(c=>a.sc-c.sc<margin);
+  if(a.lat!=null&&same.every(c=>c.lat!=null&&haversineKm([a.lat,a.lon],[c.lat,c.lon])<=sameKm))return a;
+  return null;
+}
+
 /* ---------- export ---------- */
 function toCSV(rows,delim=";"){
   return rows.map(r=>r.map(v=>{v=v==null?"":String(v);return /[";\n,\t]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(delim)).join("\r\n");
@@ -474,6 +553,7 @@ function toCSV(rows,delim=";"){
 
 const api={DAY,pad,isoFromDate,toDay,fromDay,addDays,diffDays,todayIso,parseDate,fmtDate,clean,normName,tokens,nameScore,parseCSV,readXlsx,
   FIELDS,findHeaderRow,guessColumns,analyseTables,buildLegs,placeKey,derivePlaces,buildStays,normFacility,normWellbore,rowsToObjects,
-  buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,titleCase,toCSV,isSodirWellbore,isSodirFacility};
+  buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,titleCase,toCSV,isSodirWellbore,isSodirFacility,
+  activityByFacility,dateFit,neighbours,pickAuto,heliport,flightHints,flightFit};
 if(typeof module!=="undefined"&&module.exports)module.exports=api;else root.OK=api;
 })(typeof window!=="undefined"?window:globalThis);

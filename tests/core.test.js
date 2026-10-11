@@ -156,3 +156,41 @@ test("gammelt rigg-navn gir forslag til nytt navn, men ikke på felles merkenavn
   assert.equal(C.idfScore("Transocean Arctic", "TRANSOCEAN ENDURANCE", df), 0);   // felles merkenavn er ikke nok
   assert.equal(C.idfScore("Maersk Interceptor", "MAERSK GIANT", df), 0);
 });
+
+test("automatisk kobling: boreperioder avgjør mellom rigger med lik kode", () => {
+  const act = C.activityByFacility([
+    { id: "A", entry: "2023-01-01", comp: "2023-02-10" },
+    { id: "A", entry: "2023-03-01", comp: "2023-05-01" }, // 19 dager pause -> én periode
+    { id: "B", entry: "2019-01-01", comp: "2019-06-01" },
+  ]);
+  assert.equal(act.get("A").length, 1);
+  const stays = [{ start: "2023-01-10", end: "2023-01-24" }, { start: "2023-04-01", end: "2023-04-15" }];
+  assert.equal(C.dateFit(act.get("A"), stays), 1);
+  assert.equal(C.dateFit(act.get("B"), stays), 0);
+});
+
+test("automatisk kobling velger bare når én kandidat skiller seg ut", () => {
+  assert.equal(C.pickAuto([{ sc: 0.8 }, { sc: 0.5 }]).sc, 0.8);
+  assert.equal(C.pickAuto([{ sc: 0.8 }, { sc: 0.78 }]), null, "for likt");
+  assert.equal(C.pickAuto([{ sc: 0.4 }]), null, "for svakt");
+  // like sterke, men på samme felt: posisjonen blir den samme
+  assert.equal(C.pickAuto([{ sc: 0.8, lat: 65.7, lon: 7.6 }, { sc: 0.79, lat: 65.71, lon: 7.61 }]).sc, 0.8);
+});
+
+test("naboer: installasjoner det er fløyet direkte mellom", () => {
+  const kind = (k) => (k === "BASE" ? "base" : "installation");
+  const n = C.neighbours([{ from: "BASE", to: "FED" }, { from: "FED", to: "SKV" }, { from: "SKV", to: "FED" }, { from: "FED", to: "BASE" }], kind);
+  assert.equal(n.get("FED").get("SKV"), 2);
+  assert.equal(n.has("BASE"), false);
+});
+
+test("flytid fra heliporten skiller felt med lik kode", () => {
+  // 54 min fra Brønnøysund ≈ 180–230 km ut: Norskehavet, ikke Nordsjøen
+  const legs = [{ from: "BNN", to: "SKV", dep: "11:41", arr: "12:35" }, { from: "SKV", to: "BNN", dep: "08:00", arr: "08:56" }];
+  const hints = C.flightHints(legs, "SKV");
+  assert.equal(hints.length, 2);
+  assert.equal(C.flightFit([65.72, 7.64], hints), 1, "Skarv passer");
+  assert.equal(C.flightFit([58.5, 1.9], hints), -1, "Nordsjøen er for langt unna");
+  assert.equal(C.flightFit([65.72, 7.64], C.flightHints([{ from: "XYZ", to: "SKV" }], "SKV")), 0, "ukjent base: ingen vurdering");
+  assert.ok(C.heliport("bnn") && C.heliport("ENZV"));
+});
