@@ -26,6 +26,9 @@ def parts(favicon=True):
     icon = '<link rel="icon" href="favicon.svg" type="image/svg+xml">\n' if favicon else ""
     head = f"""<title>Sokkelreiser</title>
 <meta name="description" content="Finn tilbake til hvor du har vært offshore. Reiselogg fra MinDaVinci, posisjoner fra Sodir. Alt skjer i nettleseren.">
+<meta property="og:title" content="Sokkelreiser">
+<meta property="og:description" content="Finn tilbake til hvor du har vært offshore. Alt skjer i nettleseren.">
+<meta property="og:type" content="website">
 <meta name="theme-color" content="#0e1c26">
 {icon}<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

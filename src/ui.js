@@ -699,7 +699,7 @@ function renderSource(){
   const el=$("source"),t=$("sourceText");el.className="ov source "+({live:"live",cache:"cache",file:"cache",err:"err"}[D.status]||"");
   const d=D.stamp?new Date(D.stamp).toLocaleDateString("nb-NO",{day:"numeric",month:"short",year:"numeric"}):"";
   t.innerHTML={none:"Sodir: ikke lastet",loading:"Henter data fra Sodir …",live:`Sodir · oppdatert ${h(d)}`,cache:`Sodir · lagret kopi ${h(d)}`,file:`Sodir · fra fil ${h(d)}`,
-    err:`Sodir utilgjengelig · <button class="linkish" type="button" id="srcRetry">prøv igjen</button>`}[D.status]||"";
+    err:`Sodir utilgjengelig (nettverket kan blokkere factmaps.sodir.no) · <button class="linkish" type="button" id="srcRetry">prøv igjen</button>`}[D.status]||"";
   const r=$("srcRetry");if(r)r.onclick=()=>loadFacilities(true).then(ok=>{if(ok){autoLink();persist();recompute()}});
 }
 function emptyState(){
