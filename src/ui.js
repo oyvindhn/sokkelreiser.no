@@ -517,7 +517,7 @@ function resolveStay(stay,key=stay.key,depth=0,facId){
   if(!facId&&l.periods&&l.periods.length){
     // samme kode, ulike innretninger eller navn over tid (f.eks. Mærsk Inspirer på Volve, senere Yme Inspirer)
     const per=periodAt(l,stay.start);
-    if(per)return resolveStay(stay,key,depth,per.id).map(g=>g.site?{...g,thenName:per.label,site:g.site.kind==='fixed'&&per.label?{...g.site,name:per.label}:g.site}:g);
+    if(per)return resolveStay(stay,key,depth,per.id).map(g=>g.site?{...g,thenName:per.label,site:g.site.kind==='fixed'&&per.label?{...g.site,name:per.label}:g.site}:{...g,thenName:per.label});
   }
   const f=D.facById.get(facId||l.id);
   if(!f)return [{site:null,start:stay.start,end:stay.end,conf:"ukjent",note:D.status==="err"?"Sodir-data er ikke tilgjengelig.":"Laster Sodir-data …"}];
