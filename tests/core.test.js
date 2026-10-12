@@ -370,3 +370,11 @@ test("registryName gir datidens navn fra riggregisteret", () => {
   assert.equal(C.registryName(reg,"Noble Interceptor","2023-01-01").navn,"Noble Interceptor");
   assert.equal(C.registryName(reg,"Ukjent rigg","2023-01-01"),null);
 });
+
+test("innretningshistorikk gir navn og datoer", () => {
+  const rows=[{name:"MÆRSK INSPIRER",from:"2007-01-18",to:"2021-10-31"},{name:"MÆRSK INSPIRER",from:"2021-10-01",to:"2021-10-31"},{name:"INSPIRER",from:"2021-11-01",to:""}];
+  assert.equal(C.histRowAt(rows,"2013-09-12").name,"MÆRSK INSPIRER");
+  assert.equal(C.histRowAt(rows,"2022-01-01").name,"INSPIRER");
+  assert.equal(C.histRowAt(rows,"2005-01-01"),null);
+  assert.deepEqual(C.histNames(rows).map(n=>n.name),["MÆRSK INSPIRER","INSPIRER"]);
+});

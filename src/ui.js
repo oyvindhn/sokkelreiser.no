@@ -50,6 +50,7 @@ const D={
   facilities:[],facById:new Map(),
   fileWellbores:null,  // Map facId -> [wb] when loaded from a Sodir file
   wellbores:new Map(), // facId -> [wb]
+  hist:new Map(), // facId -> Sodirs innretningshistorikk (lag 6003)
   timelines:new Map(), // facId -> timeline
   aliases:new Map(),   // facId -> tidligere navn (fra Sodirs brønnregister)
   activity:null,       // facId -> perioder riggen boret (brukes til automatisk kobling)
@@ -184,6 +185,18 @@ async function getWellbores(facId){
     .catch(e=>{console.warn("Sodir wellbores",e);if(cached){D.wellbores.set(facId,cached.list);return cached.list}return null})
     .finally(()=>D.pending.delete(facId));
   D.pending.set(facId,pr);return pr;
+}
+async function historyFor(facId){
+  if(!/^\d+$/.test(String(facId)))return [];
+  if(D.hist.has(facId))return D.hist.get(facId);
+  const cached=store.get("sodir:fh:"+facId,null);
+  if(cached&&Date.now()-cached.ts<CACHE_DAYS*864e5){D.hist.set(facId,cached.list);return cached.list}
+  const q={where:`fclNpdidFacility=${facId}`,outFields:"*",returnGeometry:"false",orderByFields:"fclFromDate"};
+  try{
+    const feats=await arcQuery(6003,q,SODIR_MAP).catch(()=>arcQuery(6003,q));
+    const list=feats.map(f=>C.normFacHist(f.attributes||{}));
+    store.set("sodir:fh:"+facId,{ts:Date.now(),list});D.hist.set(facId,list);return list;
+  }catch(e){console.warn("Sodir innretningshistorikk",e);const l=cached?cached.list:[];D.hist.set(facId,l);return l}
 }
 async function timelineFor(facId){
   if(D.timelines.has(facId))return D.timelines.get(facId);
@@ -496,11 +509,13 @@ async function prefetchForStays(stays){
   const want=(key,depth=0)=>{const p=S.places[key];if(!p||!p.link||depth>3)return;if(p.link.type==="sodir"){for(const id of linkIds(p.link)){const f=D.facById.get(id);if(f&&(f.moveable||hasHistory(f)))ids.add(f.id)}}if(p.link.type==="follow"){want(p.link.key,depth+1);for(const q of p.link.periods||[])want(q.key,depth+1)}};
   for(const s of stays)want(s.key);
   const fields=new Set();for(const p of Object.values(S.places))for(const id of linkIds(p.link)){const f=D.facById.get(id);if(f&&!f.moveable&&f.belongsTo)fields.add(f.belongsTo)}
-  await Promise.all([...[...ids].map(id=>timelineFor(id)),...[...fields].map(fieldBlock)]);
+  await Promise.all([...[...ids].map(id=>timelineFor(id)),...[...ids].map(id=>historyFor(id)),...[...fields].map(fieldBlock)]);
 }
 const RIGREG=((window.RIGGNAVN||{}).rigger)||[];
 /* Navnet riggen hadde på datoen: først navnet på nærmeste brønn hos Sodir, så rettet av riggregisteret når det kjenner navnebyttet. */
 function thenOf(tl,f,date){
+  const hr=C.histRowAt(D.hist.get(f.id),date);
+  if(hr&&hr.name)return {thenName:hr.name,thenSrc:{kilde:"Sodirs innretningshistorikk",url:f.url||"https://factpages.sodir.no/",presisjon:"dato"}};
   const w=C.nameAt(tl,date),r=C.registryName(RIGREG,w||f.name,date);
   return r?{thenName:r.navn,thenSrc:r.kilde?{kilde:r.kilde,url:r.url,presisjon:r.presisjon}:null}:{thenName:w};
 }
@@ -990,7 +1005,7 @@ function stayDetail(s){
       html+=`<dl>
         <dt>Lokasjon</dt><dd><b>${h(st.name)}</b> ${pill(g.conf)}</dd>
         ${g.thenName&&C.normName(g.thenName)!==C.normName(st.facilityName||"")&&C.normName(g.thenName)!==C.normName(labelOf(s.key))?`<dt>Het da</dt><dd>${h(C.titleCase(g.thenName))} <span class="muted">(nå ${h(labelOf(s.key))})</span>${g.thenSrc?`<div class="small muted">${g.thenSrc.presisjon==="dato"?"":"Omtrentlig tidspunkt. "}<a href="${h(g.thenSrc.url)}" target="_blank" rel="noopener">${h(g.thenSrc.kilde)}</a></div>`:""}</dd>`:""}
-        ${(()=>{const nh=C.nameHistory(D.timelines.get(st.facilityId||""));return nh.length>1?`<dt>Navn hos Sodir</dt><dd>${nh.map(n=>`${h(C.titleCase(n.name))} <span class="muted mono">${n.from.slice(0,4)}–${n.to.slice(0,4)}</span>`).join("<br>")}<div class="small muted">Utledet av brønnene. Selve navnebyttet skjedde mellom periodene.</div></dd>`:""})()}
+        ${(()=>{const hn=C.histNames(D.hist.get(st.facilityId||"")),nh=hn.length>1?hn:C.nameHistory(D.timelines.get(st.facilityId||""));if(nh.length<2)return "";const exact=hn.length>1;return `<dt>Navn hos Sodir</dt><dd>${nh.map(n=>`${h(C.titleCase(n.name))} <span class="muted mono">${exact?C.fmtDate(n.from)+" – "+(n.to?C.fmtDate(n.to):"i dag"):n.from.slice(0,4)+"–"+n.to.slice(0,4)}</span>`).join("<br>")}${exact?"":`<div class="small muted">Utledet av brønnene. Selve navnebyttet skjedde mellom periodene.</div>`}</dd>`})()}
         ${st.discovery?`<dt>Funn</dt><dd>${h(C.titleCase(st.discovery))}</dd>`:""}
         ${st.aliases&&st.aliases.length?`<dt>Alias hos Sodir</dt><dd>${st.aliases.map(x=>h(C.titleCase(x))).join(", ")}</dd>`:""}
         ${st.prospect?`<dt>Prospekt</dt><dd>${h(C.titleCase(st.prospect))}${st.prospectText?`<div class="small muted">Fra Sodirs brønnhistorikk: «${h(st.prospectText)}»</div>`:""}</dd>`:""}

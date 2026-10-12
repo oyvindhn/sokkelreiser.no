@@ -512,6 +512,21 @@ function nameAt(tl,date){
   for(const v of tl.visits)for(const w of v.wells){if(!w.facility)continue;const a=toDay(w.entry),b=toDay(w.comp||w.entry);const g=d<a?a-d:d>b?d-b:0;if(g<bd){bd=g;best=w.facility}}
   return bd<=730?best:"";
 }
+/* Sodirs innretningshistorikk (lag 6003): én rad per periode med navn, felt, fase og type. */
+function normFacHist(a){return {name:clean(a.fclName),kind:clean(a.fclKind),belongsTo:clean(a.fclBelongsToName),phase:clean(a.fclPhaseName),change:clean(a.fclChangeType),from:parseDate(a.fclFromDate),to:parseDate(a.fclToDate)}}
+function histRowAt(rows,date){
+  if(!rows||!rows.length||!date)return null;let best=null;
+  for(const r of rows){if(!r.from||r.from>date||(r.to&&r.to<date))continue;if(!best||r.from>best.from)best=r}
+  return best;
+}
+/* Navnene i rekkefølge med datoer: [{name,from,to}] (to tom = i dag) */
+function histNames(rows){
+  const out=[];for(const r of (rows||[]).slice().sort((a,b)=>a.from<b.from?-1:a.from>b.from?1:0)){
+    if(!r.name||!r.from)continue;const l=out[out.length-1];
+    if(l&&normName(l.name)===normName(r.name)){l.to=r.to&&(!l.to||r.to>l.to)?r.to:(r.to?l.to:"")}
+    else out.push({name:r.name,from:r.from,to:r.to||""})}
+  return out;
+}
 /* Alle navn riggen har hatt i brønnregisteret, i tidsrekkefølge: [{name,from,to}]. Navnebytte ligger mellom «to» og neste «from». */
 function nameHistory(tl){
   const ws=[];if(tl)for(const v of tl.visits)for(const w of v.wells)if(w.facility&&w.entry)ws.push(w);
@@ -671,7 +686,7 @@ function toCSV(rows,delim=";"){
 
 const api={minutesOf,isFlyable,SHELF_BASES,reachable,flotelPeriods,flotelCandidates,DAY,pad,isoFromDate,toDay,fromDay,addDays,diffDays,todayIso,parseDate,fmtDate,clean,normName,tokens,nameScore,parseCSV,readXlsx,
   FIELDS,findHeaderRow,guessColumns,analyseTables,buildLegs,placeKey,derivePlaces,buildStays,normFacility,normWellbore,rowsToObjects,
-  buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,nameAt,nameHistory,registryName,fieldWord,discoveryName,shortOperator,prospectFromHistory,nameSite,titleCase,toCSV,isSodirWellbore,isSodirFacility,
+  buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,nameAt,nameHistory,registryName,normFacHist,histRowAt,histNames,fieldWord,discoveryName,shortOperator,prospectFromHistory,nameSite,titleCase,toCSV,isSodirWellbore,isSodirFacility,
   activityByFacility,dateFit,neighbours,pickAuto,heliport,flightHints,flightFit};
 if(typeof module!=="undefined"&&module.exports)module.exports=api;else root.OK=api;
 })(typeof window!=="undefined"?window:globalThis);
