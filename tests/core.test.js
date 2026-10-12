@@ -353,3 +353,12 @@ test("titleCase: plattformkoder uten vokal i store bokstaver", () => {
   assert.equal(C.titleCase("MÆRSK GUARDIAN"), "Maersk Guardian");
   assert.equal(C.titleCase("TROLL B"), "Troll B");
 });
+
+test("nameHistory gir navnene i rekkefølge", () => {
+  const w=(f,a,b)=>({facility:f,entry:a,comp:b});
+  const tl={visits:[{wells:[w("MAERSK X","2010-01-01","2010-03-01"),w("MAERSK X","2011-01-01","2011-02-01")]},{wells:[w("NOBLE X","2016-01-01","2016-02-01")]}]};
+  const h=C.nameHistory(tl);
+  assert.deepEqual(h.map(x=>x.name),["MAERSK X","NOBLE X"]);
+  assert.equal(h[0].to,"2011-02-01");assert.equal(h[1].from,"2016-01-01");
+  assert.deepEqual(C.nameHistory(null),[]);
+});

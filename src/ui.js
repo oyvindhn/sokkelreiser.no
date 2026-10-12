@@ -984,6 +984,7 @@ function stayDetail(s){
       html+=`<dl>
         <dt>Lokasjon</dt><dd><b>${h(st.name)}</b> ${pill(g.conf)}</dd>
         ${g.thenName&&C.normName(g.thenName)!==C.normName(st.facilityName||"")&&C.normName(g.thenName)!==C.normName(labelOf(s.key))?`<dt>Het da</dt><dd>${h(C.titleCase(g.thenName))} <span class="muted">(nå ${h(labelOf(s.key))})</span></dd>`:""}
+        ${(()=>{const nh=C.nameHistory(D.timelines.get(st.facilityId||""));return nh.length>1?`<dt>Navn hos Sodir</dt><dd>${nh.map(n=>`${h(C.titleCase(n.name))} <span class="muted mono">${n.from.slice(0,4)}–${n.to.slice(0,4)}</span>`).join("<br>")}<div class="small muted">Utledet av brønnene. Selve navnebyttet skjedde mellom periodene.</div></dd>`:""})()}
         ${st.discovery?`<dt>Funn</dt><dd>${h(C.titleCase(st.discovery))}</dd>`:""}
         ${st.aliases&&st.aliases.length?`<dt>Alias hos Sodir</dt><dd>${st.aliases.map(x=>h(C.titleCase(x))).join(", ")}</dd>`:""}
         ${st.prospect?`<dt>Prospekt</dt><dd>${h(C.titleCase(st.prospect))}${st.prospectText?`<div class="small muted">Fra Sodirs brønnhistorikk: «${h(st.prospectText)}»</div>`:""}</dd>`:""}

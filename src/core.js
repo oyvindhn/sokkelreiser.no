@@ -512,6 +512,16 @@ function nameAt(tl,date){
   for(const v of tl.visits)for(const w of v.wells){if(!w.facility)continue;const a=toDay(w.entry),b=toDay(w.comp||w.entry);const g=d<a?a-d:d>b?d-b:0;if(g<bd){bd=g;best=w.facility}}
   return bd<=730?best:"";
 }
+/* Alle navn riggen har hatt i brønnregisteret, i tidsrekkefølge: [{name,from,to}]. Navnebytte ligger mellom «to» og neste «from». */
+function nameHistory(tl){
+  const ws=[];if(tl)for(const v of tl.visits)for(const w of v.wells)if(w.facility&&w.entry)ws.push(w);
+  ws.sort((a,b)=>a.entry<b.entry?-1:a.entry>b.entry?1:0);
+  const out=[];
+  for(const w of ws){const e=w.comp||w.entry,l=out[out.length-1];
+    if(l&&normName(l.name)===normName(w.facility)){if(e>l.to)l.to=e}
+    else out.push({name:w.facility,from:w.entry,to:e})}
+  return out;
+}
 /* Where was rig X between start and end?  -> segments with confidence. */
 function locateOnRig(tl,start,end){
   if(!tl||!tl.visits.length)return [{site:null,start,end,conf:"ukjent",note:"Sodir har ingen brønner registrert på denne riggen."}];
@@ -651,7 +661,7 @@ function toCSV(rows,delim=";"){
 
 const api={minutesOf,isFlyable,SHELF_BASES,reachable,flotelPeriods,flotelCandidates,DAY,pad,isoFromDate,toDay,fromDay,addDays,diffDays,todayIso,parseDate,fmtDate,clean,normName,tokens,nameScore,parseCSV,readXlsx,
   FIELDS,findHeaderRow,guessColumns,analyseTables,buildLegs,placeKey,derivePlaces,buildStays,normFacility,normWellbore,rowsToObjects,
-  buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,nameAt,fieldWord,discoveryName,shortOperator,prospectFromHistory,nameSite,titleCase,toCSV,isSodirWellbore,isSodirFacility,
+  buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,nameAt,nameHistory,fieldWord,discoveryName,shortOperator,prospectFromHistory,nameSite,titleCase,toCSV,isSodirWellbore,isSodirFacility,
   activityByFacility,dateFit,neighbours,pickAuto,heliport,flightHints,flightFit};
 if(typeof module!=="undefined"&&module.exports)module.exports=api;else root.OK=api;
 })(typeof window!=="undefined"?window:globalThis);
