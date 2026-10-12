@@ -32,6 +32,7 @@ def parts(favicon=True):
 <meta property="og:description" content="Finn tilbake til hvor du har vært offshore. Alt skjer i nettleseren.">
 <meta property="og:type" content="website">
 <meta name="theme-color" content="#0e1c26">
+<script>/* valgt tema før første tegning, så siden ikke blinker */try{{var t=JSON.parse(localStorage.getItem("sokkelreise:theme"));if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}}catch(e){{}}</script>
 {icon}<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap">
