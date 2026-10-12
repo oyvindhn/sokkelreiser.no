@@ -24,12 +24,13 @@ const S={
   sourceName:store.get("sourceName",""),
   places:store.get("places",{}),          // key -> {key,raw,label,kind,link,auto,rows,guess}
   manual:store.get("manual",[]),          // manual stays
-  overrides:store.get("overrides",{}),    // stayId -> {lat,lon,label}
+  overrides:store.get("overrides",{}),
+  accepted:store.get("accepted",{}),      // stayId -> true: opphold over 5 uker som brukeren har godtatt    // stayId -> {lat,lon,label}
   ui:{tab:"stays",year:null,sel:null,rig:null,rigDate:"",rigSel:null,openPlace:null,pick:null},
 };
 function persist(){
   store.set("legs",S.legs);store.set("sourceName",S.sourceName);store.set("places",S.places);
-  store.set("manual",S.manual);store.set("overrides",S.overrides);
+  store.set("manual",S.manual);store.set("overrides",S.overrides);store.set("accepted",S.accepted);
 }
 
 /* ================= Sodir data ================= */
@@ -621,6 +622,8 @@ class Chart{
 
 /* ================= map content ================= */
 let chart;
+/* Opphold over 5 uker teller ikke med i døgn før brukeren har godtatt dem. */
+function countDays(s){return s.long&&!S.accepted[s.id]?0:s.days}
 function inYear(s,y){return !y||(s.start.slice(0,4)<=String(y)&&s.end.slice(0,4)>=String(y))}
 const MAPOPT=Object.assign({routes:true,drift:false,names:false},store.get("mapopt",{}));
 const PIN=5.5;   // én størrelse for alle installasjoner
@@ -751,8 +754,8 @@ function renderStays(){
   const v=$("view-stays");
   if(!STAYS.length){v.innerHTML=emptyState();bindDrop($("drop"));return}
   const y=S.ui.year;const vis=STAYS.filter(s=>inYear(s,y));
-  const byYear={};for(const s of STAYS){const yr=+s.start.slice(0,4);byYear[yr]=(byYear[yr]||0)+s.days}
-  const days=vis.reduce((n,s)=>n+s.days,0);
+  const byYear={};for(const s of STAYS){const yr=+s.start.slice(0,4);byYear[yr]=(byYear[yr]||0)+countDays(s)}
+  const days=vis.reduce((n,s)=>n+countDays(s),0);const pending=vis.filter(s=>s.long&&!S.accepted[s.id]).length;
   const sites=new Set();const insts=new Set();for(const s of vis){if(!s.turnback)insts.add(s.key);for(const g of s.segs)if(g.site)sites.add(g.site.id)}
   const need=Object.values(S.places).filter(p=>p.kind==="installation"&&!p.link).length;
   const unknown=vis.filter(s=>!s.turnback&&s.segs.every(g=>!g.site)).length;const trips=vis.length;
@@ -761,12 +764,13 @@ function renderStays(){
     <div class="stat"><b>${trips}</b><span>${plural(trips,"tur","turer")}</span></div>
     <div class="stat"><b>${insts.size}</b><span>${plural(insts.size,"innretning","innretninger")}</span></div>
     <div class="stat"><b>${sites.size}</b><span>${plural(sites.size,"lokasjon","lokasjoner")}</span></div></div>`;
+  if(pending)html+=`<div class="answer">${pending} ${plural(pending,"opphold","opphold")} er over fem uker og telles ikke med i døgn før du har sjekket og godtatt ${pending>1?"dem":"det"}. Trolig mangler en reise i arket.</div>`;
   if(need)html+=`<div class="answer">${need} ${plural(need,"installasjon","installasjoner")} i loggen kunne ikke kobles sikkert automatisk.${D.status==="err"?" Sodir svarer ikke akkurat nå, men du kan plassere dem i kartet selv eller laste inn Sodir-data som fil.":""} <button class="linkish" type="button" data-act="placestab">Se forslag</button></div>`;
   else if(D.status==="err"&&unknown)html+=`<div class="answer">Fikk ikke kontakt med Sodir, så posisjonene til flyttbare rigger mangler. Prøv igjen senere, eller last inn Sodir sin brønnbanetabell som CSV via <b>Importer</b>.</div>`;
   html+=`<div class="hist"><p class="eyebrow"><span>Døgn offshore per år</span>${y?`<button class="linkish" type="button" data-act="allyears">Vis alle år</button>`:`<span style="text-transform:none;letter-spacing:0">Trykk på et år for å filtrere</span>`}</p>${histogram(byYear,y)}</div>`;
   const groups=new Map();for(const s of vis.slice().reverse()){const yr=s.start.slice(0,4);if(!groups.has(yr))groups.set(yr,[]);groups.get(yr).push(s)}
   for(const [yr,list] of groups){
-    const d=list.reduce((n,s)=>n+s.days,0),nt=list.length,nb=list.filter(s=>s.turnback).length;
+    const d=list.reduce((n,s)=>n+countDays(s),0),nt=list.length,nb=list.filter(s=>s.turnback).length;
     html+=`<div class="year-group"><div class="year-head"><h3>${yr}</h3><span>${nt} ${plural(nt,"tur","turer")}${nb?` (${nb} snudd)`:""} · ${d} døgn</span></div>`;
     for(const s of list)html+=stayRow(s);
     html+=`</div>`;
@@ -799,7 +803,7 @@ function stayRow(s){
   let html=`<div class="stay${sel?" sel":""}" role="button" tabindex="0" data-stay="${h(s.id)}" aria-expanded="${sel}">
     <div class="when">${when}</div>
     <div class="what"><div class="inst">${instTitle(s,p)}</div><div class="where">${h(where)} ${pill(conf)}</div></div>
-    <div class="days${s.long?" long":s.over?" over":""}"${s.long?' title="Over 5 uker: sjekk om en reise mangler i arket"':s.over?' title="Over 21 døgn"':""}>${s.days}<small>døgn${s.long?" ?":""}</small></div>`;
+    <div class="days${s.long&&!S.accepted[s.id]?" long":s.over?" over":""}"${s.long&&!S.accepted[s.id]?' title="Over 5 uker: sjekk om en reise mangler i arket"':s.over?' title="Over 21 døgn"':""}>${s.days}<small>døgn${s.long&&!S.accepted[s.id]?" ?":""}</small></div>`;
   if(sel)html+=stayDetail(s);
   return html+`</div>`;
 }
@@ -842,9 +846,10 @@ function stayDetail(s){
       return `<div class="leg"><div class="mono">${C.fmtDate(l.date)}${t?" · "+h(t):""}${l.route?" · "+h(l.route):""}</div><div>${h(nm(l.from||""))}${l.from||l.to?" → ":""}${h(nm(l.to||l.inst))}</div>${sub.length?`<div class="muted">${sub.map(h).join(" · ")}</div>`:""}</div>`};
     html+=`<div class="small"><div class="muted" style="margin-bottom:3px">Reiser i loggen</div>${legs.map(line).join("")}</div>`;
   }
-  if(!s.startKnown||!s.endKnown||s.over)html+=`<div class="note">${!s.startKnown?"Loggen mangler utreisen. ":""}${!s.endKnown?(s.ongoing?"Ingen hjemreise registrert ennå. ":"Loggen mangler hjemreisen. "):""}${s.long?"Over fem uker offshore er svært uvanlig. Trolig mangler en hjemreise og en utreise i arket.":s.over?"Lengre enn maks oppholdsperiode på 21 døgn, f.eks. på grunn av vær.":""}</div>`;
+  if(!s.startKnown||!s.endKnown||s.over)html+=`<div class="note">${!s.startKnown?"Loggen mangler utreisen. ":""}${!s.endKnown?(s.ongoing?"Ingen hjemreise registrert ennå. ":"Loggen mangler hjemreisen. "):""}${s.long?(S.accepted[s.id]?"Over fem uker – du har godtatt oppholdet.":"Over fem uker offshore er svært uvanlig. Trolig mangler en hjemreise og en utreise i arket. Oppholdet telles ikke med i døgn før du godtar det."):s.over?"Lengre enn maks oppholdsperiode på 21 døgn, f.eks. på grunn av vær.":""}</div>`;
   const p=S.places[s.key];const mob=s.segs.find(g=>g.site&&g.site.kind==="mobile");
   html+=`<div class="row">
+    ${s.long?`<button class="btn small${S.accepted[s.id]?" ghost":""}" type="button" data-act="${S.accepted[s.id]?"unacceptlong":"acceptlong"}" data-id="${h(s.id)}">${S.accepted[s.id]?"Angre godkjenning":"Godta oppholdet"}</button>`:""}
     <button class="btn small ghost" type="button" data-act="pickstay" data-id="${h(s.id)}">${S.overrides[s.id]?"Flytt manuell posisjon":"Sett posisjon for denne turen"}</button>
     ${S.overrides[s.id]?`<button class="btn small ghost" type="button" data-act="unpickstay" data-id="${h(s.id)}">Fjern manuell posisjon</button>`:""}
     ${mob?`<button class="btn small ghost" type="button" data-act="openrig" data-id="${h(mob.site.facilityId)}" data-date="${h(s.start)}">Rigghistorikk</button>`:""}
@@ -1007,7 +1012,7 @@ async function handleFile(file){
     if(/\.json$/i.test(name)){
       const j=JSON.parse(await file.text());
       if(!["sokkelreiser","sokkelreise","offshorekart"].includes(j.app))throw new Error("JSON-filen er ikke en prosjektfil fra Sokkelreiser.");
-      S.legs=j.legs||[];S.places=j.places||{};S.manual=j.manual||[];S.overrides=j.overrides||{};S.sourceName=j.sourceName||name;
+      S.legs=j.legs||[];S.places=j.places||{};S.manual=j.manual||[];S.overrides=j.overrides||{};S.accepted=j.accepted||{};S.sourceName=j.sourceName||name;
       persist();toast("Prosjektfilen er lastet inn.");await recompute();fitToContent();return;
     }
     let tables,date1904=false;
@@ -1110,7 +1115,7 @@ document.addEventListener("click",async e=>{
   else if(act==="allyears"){S.ui.year=null;renderStays();updateMap();fitToContent()}
   else if(act==="csv")download("sokkelreiser-opphold.csv","﻿"+C.toCSV(stayTable()),"text/csv;charset=utf-8");
   else if(act==="copy")copyText(C.toCSV(stayTable(),"\t"));
-  else if(act==="save")download("sokkelreiser-prosjekt.json",JSON.stringify({app:"sokkelreiser",version:1,saved:new Date().toISOString(),sourceName:S.sourceName,legs:S.legs,places:S.places,manual:S.manual,overrides:S.overrides}),"application/json");
+  else if(act==="save")download("sokkelreiser-prosjekt.json",JSON.stringify({app:"sokkelreiser",version:1,saved:new Date().toISOString(),sourceName:S.sourceName,legs:S.legs,places:S.places,manual:S.manual,overrides:S.overrides,accepted:S.accepted}),"application/json");
   else if(act==="koder")download("koder.json",JSON.stringify({app:"sokkelreiser",version:1,koder:koderPayload()},null,2),"application/json");
   else if(act==="share"){
     const k=koderPayload();if(!Object.keys(k).length){toast("Du har ingen koblinger å dele ennå.");return}
@@ -1124,6 +1129,8 @@ document.addEventListener("click",async e=>{
   else if(act==="clear")confirmDialog("Slette alle data?","Reiseloggen, koblingene og lagret Sodir-data fjernes fra denne nettleseren. Lagre en prosjektfil først hvis du vil beholde arbeidet.","Slett alt",()=>{for(const k of store.keys())store.del(k);location.reload()});
   else if(act==="openrig")openRig(b.dataset.id,b.dataset.date);
   else if(act==="pickstay")startPick("stay",b.dataset.id,"Klikk der du var på denne turen");
+  else if(act==="acceptlong"){S.accepted[b.dataset.id]=true;persist();renderStays();updateMap()}
+  else if(act==="unacceptlong"){delete S.accepted[b.dataset.id];persist();renderStays();updateMap()}
   else if(act==="unpickstay"){delete S.overrides[b.dataset.id];persist();recompute()}
   else if(act==="delmanual"){S.manual=S.manual.filter(m=>m.id!==b.dataset.id);S.ui.sel=null;persist();recompute()}
   else if(act==="editplace"){S.ui.openPlace=b.dataset.key;switchTab("places");renderPlaces()}

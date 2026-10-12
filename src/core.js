@@ -452,6 +452,9 @@ function nameSite(s){
 function shortOperator(o){
   const drop=/^(as|asa|a\/s|ab|bv|nv|ltd|limited|inc|plc|norge|norway|company|petroleum|energy|exploration|production|and|&|e&p|operating|operations|group|international|oljeselskap)$/i;
   const t=String(o||"").replace(/[.,]/g," ").split(/\s+/).filter(Boolean);
+  // selskaper der «Petroleum»/«Energy» er en del av navnet folk brukte
+  const keep=/^(faroe petroleum|spirit energy|neptune energy|ithaca energy|vår energi)\b/i.exec(t.join(" "));
+  if(keep)return titleCase(keep[1]);
   const k=t.filter(x=>!drop.test(x)),r=(k.length?k:t).join(" ");
   const w=r.split(" ");
   // «LOTOS» -> «Lotos»; «Det norske» -> «Det Norske»; «Aker BP» beholdes
