@@ -362,3 +362,11 @@ test("nameHistory gir navnene i rekkefølge", () => {
   assert.equal(h[0].to,"2011-02-01");assert.equal(h[1].from,"2016-01-01");
   assert.deepEqual(C.nameHistory(null),[]);
 });
+
+test("registryName gir datidens navn fra riggregisteret", () => {
+  const reg=[[{navn:"Maersk Interceptor",til:"2022-10-02"},{navn:"Noble Interceptor",fra:"2022-10-03"}]];
+  assert.equal(C.registryName(reg,"MAERSK INTERCEPTOR","2018-05-01").navn,"Maersk Interceptor");
+  assert.equal(C.registryName(reg,"Noble Interceptor","2018-05-01").navn,"Maersk Interceptor");
+  assert.equal(C.registryName(reg,"Noble Interceptor","2023-01-01").navn,"Noble Interceptor");
+  assert.equal(C.registryName(reg,"Ukjent rigg","2023-01-01"),null);
+});

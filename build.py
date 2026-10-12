@@ -24,6 +24,8 @@ def parts(favicon=True):
     base = json.loads((ROOT / "data" / "basemap.json").read_text(encoding="utf-8"))
     basemap = "window.BASEMAP=" + json.dumps(base, separators=(",", ":")) + ";"
     flot = json.loads((ROOT / "data" / "floteller.json").read_text(encoding="utf-8"))
+    rn = json.loads((ROOT / "data" / "riggnavn.json").read_text(encoding="utf-8"))
+    basemap += "window.RIGGNAVN=" + json.dumps(rn, ensure_ascii=False, separators=(",", ":")) + ";"
     basemap += "window.FLOTELLER=" + json.dumps(flot, ensure_ascii=False, separators=(",", ":")) + ";"
     icon = '<link rel="icon" href="favicon.svg" type="image/svg+xml">\n' if favicon else ""
     head = f"""<title>Sokkelreiser</title>

@@ -522,6 +522,16 @@ function nameHistory(tl){
     else out.push({name:w.facility,from:w.entry,to:e})}
   return out;
 }
+/* Navnebytter fra data/riggnavn.json: hva het riggen «name» på «date»? -> {navn,presisjon,kilde,url} eller null. */
+function registryName(reg,name,date){
+  if(!name||!date)return null;const n=normName(name),d=toDay(date);
+  for(const r of reg||[]){
+    if(!r.some(e=>normName(e.navn)===n))continue;
+    for(const e of r){const a=e.fra?toDay(e.fra):-Infinity,b=e.til?toDay(e.til):Infinity;if(d>=a&&d<=b)return e}
+    return null;
+  }
+  return null;
+}
 /* Where was rig X between start and end?  -> segments with confidence. */
 function locateOnRig(tl,start,end){
   if(!tl||!tl.visits.length)return [{site:null,start,end,conf:"ukjent",note:"Sodir har ingen brønner registrert på denne riggen."}];
@@ -661,7 +671,7 @@ function toCSV(rows,delim=";"){
 
 const api={minutesOf,isFlyable,SHELF_BASES,reachable,flotelPeriods,flotelCandidates,DAY,pad,isoFromDate,toDay,fromDay,addDays,diffDays,todayIso,parseDate,fmtDate,clean,normName,tokens,nameScore,parseCSV,readXlsx,
   FIELDS,findHeaderRow,guessColumns,analyseTables,buildLegs,placeKey,derivePlaces,buildStays,normFacility,normWellbore,rowsToObjects,
-  buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,nameAt,nameHistory,fieldWord,discoveryName,shortOperator,prospectFromHistory,nameSite,titleCase,toCSV,isSodirWellbore,isSodirFacility,
+  buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,nameAt,nameHistory,registryName,fieldWord,discoveryName,shortOperator,prospectFromHistory,nameSite,titleCase,toCSV,isSodirWellbore,isSodirFacility,
   activityByFacility,dateFit,neighbours,pickAuto,heliport,flightHints,flightFit};
 if(typeof module!=="undefined"&&module.exports)module.exports=api;else root.OK=api;
 })(typeof window!=="undefined"?window:globalThis);

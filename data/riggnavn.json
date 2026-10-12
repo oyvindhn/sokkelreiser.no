@@ -1,0 +1,123 @@
+{
+ "_forklaring": "Navnebytter for rigger. «fra»/«til» er datoen navnet gjelder. «presisjon»: dato = kjent dag, ca = omtrent (eierskifte/fusjon), år = bare året er kjent. Utvides etter hvert; brukere kan melde inn rettelser.",
+ "rigger": [
+  [
+   {
+    "navn": "Mærsk Inspirer",
+    "til": "2021-10-27"
+   },
+   {
+    "navn": "Inspirer",
+    "fra": "2021-10-28",
+    "presisjon": "dato",
+    "kilde": "Oilfield Technology: Maersk Drilling sells Mærsk Inspirer to Havila Sirius (28.10.2021)",
+    "url": "https://www.oilfieldtechnology.com/offshore-and-subsea/28102021/maersk-drilling-sells-mrsk-inspirer-to-havila-sirius",
+    "notat": "Omgjort til produksjonsenhet for Yme."
+   }
+  ],
+  [
+   {
+    "navn": "Maersk Interceptor",
+    "til": "2022-10-02"
+   },
+   {
+    "navn": "Noble Interceptor",
+    "fra": "2022-10-03",
+    "presisjon": "ca",
+    "kilde": "Havtil: Noble Drilling overtok Maersk Drillings innretninger i 2022. Fusjonen ble fullført 3.10.2022",
+    "url": "https://www.havtil.no/en/supervision/acknowledgements-of-compliance/granted/maersk-interceptor-maersk-drilling/"
+   }
+  ],
+  [
+   {
+    "navn": "Maersk Innovator",
+    "til": "2022-10-02"
+   },
+   {
+    "navn": "Noble Innovator",
+    "fra": "2022-10-03",
+    "presisjon": "ca",
+    "kilde": "Havtil: Noble Drilling overtok Maersk Drillings innretninger i 2022. Fusjonen ble fullført 3.10.2022",
+    "url": "https://www.havtil.no/en/supervision/acknowledgements-of-compliance/granted/noble-innovator-noble-drilling-norge-as/"
+   }
+  ],
+  [
+   {
+    "navn": "Maersk Integrator",
+    "til": "2022-10-02"
+   },
+   {
+    "navn": "Noble Integrator",
+    "fra": "2022-10-03",
+    "presisjon": "ca",
+    "kilde": "Havtil: Noble Drilling overtok Maersk Drillings innretninger i 2022. Fusjonen ble fullført 3.10.2022",
+    "url": "https://www.havtil.no/en/supervision/acknowledgements-of-compliance/granted/noble-integrator--noble-drilling-norge-as/"
+   }
+  ],
+  [
+   {
+    "navn": "Maersk Invincible",
+    "til": "2022-10-02"
+   },
+   {
+    "navn": "Noble Invincible",
+    "fra": "2022-10-03",
+    "presisjon": "ca",
+    "kilde": "Havtil: Noble Drilling overtok Maersk Drillings innretninger i 2022. Fusjonen ble fullført 3.10.2022",
+    "url": "https://www.havtil.no/en/supervision/acknowledgements-of-compliance/granted/maersk-invincible-maersk-drilling/"
+   }
+  ],
+  [
+   {
+    "navn": "Songa Enabler",
+    "til": "2018-03-29"
+   },
+   {
+    "navn": "Transocean Enabler",
+    "fra": "2018-03-30",
+    "presisjon": "ca",
+    "kilde": "Transocean overtok Songa Offshore 30.3.2018 (Havtil: navnet byttet til Transocean, uten dato; senest våren 2019)",
+    "url": "https://www.havtil.no/en/supervision/acknowledgements-of-compliance/granted/songa-enabler-songa-offshore/"
+   }
+  ],
+  [
+   {
+    "navn": "Songa Endurance",
+    "til": "2018-03-29"
+   },
+   {
+    "navn": "Transocean Endurance",
+    "fra": "2018-03-30",
+    "presisjon": "ca",
+    "kilde": "Transocean overtok Songa Offshore 30.3.2018 (Havtil: navnet byttet til Transocean, uten dato; senest våren 2019)",
+    "url": "https://www.havtil.no/en/supervision/acknowledgements-of-compliance/granted/acknowledgement-of-compliance-aoc-for-transocean-endurance/"
+   }
+  ],
+  [
+   {
+    "navn": "Songa Encourage",
+    "til": "2018-03-29"
+   },
+   {
+    "navn": "Transocean Encourage",
+    "fra": "2018-03-30",
+    "presisjon": "ca",
+    "kilde": "Transocean overtok Songa Offshore 30.3.2018 (Havtil: navnet byttet til Transocean, uten dato; senest våren 2019)",
+    "url": "https://www.havtil.no/en/supervision/acknowledgements-of-compliance/granted/transocean-encourage-transocean-services/"
+   }
+  ],
+  [
+   {
+    "navn": "Deepsea Bollsta",
+    "til": "2025-12-31"
+   },
+   {
+    "navn": "Deepsea Bergen",
+    "fra": "2026-01-01",
+    "presisjon": "år",
+    "kilde": "Odfjell Drilling: navnebyttet skjer formelt i 2026 (dag ikke oppgitt)",
+    "url": "https://www.inderes.fi/sv/releases/odl-successful-completion-of-acquisition-of-deepsea-bollsta-and-refinancing"
+   }
+  ]
+ ]
+}

@@ -498,6 +498,12 @@ async function prefetchForStays(stays){
   const fields=new Set();for(const p of Object.values(S.places))for(const id of linkIds(p.link)){const f=D.facById.get(id);if(f&&!f.moveable&&f.belongsTo)fields.add(f.belongsTo)}
   await Promise.all([...[...ids].map(id=>timelineFor(id)),...[...fields].map(fieldBlock)]);
 }
+const RIGREG=((window.RIGGNAVN||{}).rigger)||[];
+/* Navnet riggen hadde på datoen: først navnet på nærmeste brønn hos Sodir, så rettet av riggregisteret når det kjenner navnebyttet. */
+function thenOf(tl,f,date){
+  const w=C.nameAt(tl,date),r=C.registryName(RIGREG,w||f.name,date);
+  return r?{thenName:r.navn,thenSrc:r.kilde?{kilde:r.kilde,url:r.url,presisjon:r.presisjon}:null}:{thenName:w};
+}
 function resolveStay(stay,key=stay.key,depth=0,facId){
   const ov=S.overrides[stay.id];
   if(ov&&depth===0)return [{site:{id:"O:"+stay.id,lat:ov.lat,lon:ov.lon,name:ov.label||labelOf(stay.key),kind:"manual"},start:stay.start,end:stay.end,conf:"manuell",note:"Posisjon satt manuelt for denne turen."}];
@@ -530,15 +536,15 @@ function resolveStay(stay,key=stay.key,depth=0,facId){
       if(nb){const r=resolveStay(stay,nb,depth+1);if(r.some(s=>s.site))return r.map(s=>({...s,conf:s.conf==="sikker"?"trolig":s.conf,note:`${C.titleCase(f.name)} har ingen egne brønner. Lå trolig ved ${labelOf(nb)}, som du fløy til og fra. `+s.note}))}
     }
     if(!tl.visits.length&&f.lat!=null)return [{site:fixedSite(f),start:stay.start,end:stay.end,conf:"usikker",note:"Riggen har ingen brønner hos Sodir. Viser sist registrerte posisjon."}];
-    const thenName=C.nameAt(tl,stay.start);
-    return C.locateOnRig(tl,stay.start,stay.end).map(s=>({...s,thenName,site:s.site?{...s.site,facilityName:f.name}:null,note:s.note}));
+    const th=thenOf(tl,f,stay.start),thenName=th.thenName;
+    return C.locateOnRig(tl,stay.start,stay.end).map(s=>({...s,thenName,thenSrc:th.thenSrc,site:s.site?{...s.site,facilityName:f.name}:null,note:s.note}));
   }
   // «fast» innretning: har den boret brønner, viser brønnregisteret hvor den lå på den tiden
   const tl=D.timelines.get(f.id);
   if(tl&&tl.visits.length){
-    const thenName=C.nameAt(tl,stay.start);
+    const th=thenOf(tl,f,stay.start),thenName=th.thenName;
     const r=C.locateOnRig(tl,stay.start,stay.end);
-    if(r.every(g=>g.site&&g.conf==="sikker"))return r.map(g=>({...g,thenName,site:{...g.site,facilityName:f.name,url:f.url},note:"Innretningen boret her i perioden."}));
+    if(r.every(g=>g.site&&g.conf==="sikker"))return r.map(g=>({...g,thenName,thenSrc:th.thenSrc,site:{...g.site,facilityName:f.name,url:f.url},note:"Innretningen boret her i perioden."}));
     // mellom brønner: produksjonsenheten ligger der den sist boret, til den borer et annet sted
     let prev=null,next=null;for(const v of tl.visits){if(v.start<=stay.start)prev=v;else if(!next)next=v}
     const v=prev||next;
@@ -983,7 +989,7 @@ function stayDetail(s){
       const st=g.site;
       html+=`<dl>
         <dt>Lokasjon</dt><dd><b>${h(st.name)}</b> ${pill(g.conf)}</dd>
-        ${g.thenName&&C.normName(g.thenName)!==C.normName(st.facilityName||"")&&C.normName(g.thenName)!==C.normName(labelOf(s.key))?`<dt>Het da</dt><dd>${h(C.titleCase(g.thenName))} <span class="muted">(nå ${h(labelOf(s.key))})</span></dd>`:""}
+        ${g.thenName&&C.normName(g.thenName)!==C.normName(st.facilityName||"")&&C.normName(g.thenName)!==C.normName(labelOf(s.key))?`<dt>Het da</dt><dd>${h(C.titleCase(g.thenName))} <span class="muted">(nå ${h(labelOf(s.key))})</span>${g.thenSrc?`<div class="small muted">${g.thenSrc.presisjon==="dato"?"":"Omtrentlig tidspunkt. "}<a href="${h(g.thenSrc.url)}" target="_blank" rel="noopener">${h(g.thenSrc.kilde)}</a></div>`:""}</dd>`:""}
         ${(()=>{const nh=C.nameHistory(D.timelines.get(st.facilityId||""));return nh.length>1?`<dt>Navn hos Sodir</dt><dd>${nh.map(n=>`${h(C.titleCase(n.name))} <span class="muted mono">${n.from.slice(0,4)}–${n.to.slice(0,4)}</span>`).join("<br>")}<div class="small muted">Utledet av brønnene. Selve navnebyttet skjedde mellom periodene.</div></dd>`:""})()}
         ${st.discovery?`<dt>Funn</dt><dd>${h(C.titleCase(st.discovery))}</dd>`:""}
         ${st.aliases&&st.aliases.length?`<dt>Alias hos Sodir</dt><dd>${st.aliases.map(x=>h(C.titleCase(x))).join(", ")}</dd>`:""}
