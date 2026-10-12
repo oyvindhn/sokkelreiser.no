@@ -1527,6 +1527,13 @@ function drawCard(st){
   if(f.km)tiles.push([nf(f.km),"km i luften"]);
   if(f.hours>=1)tiles.push([nf(f.hours,f.hours<100?1:0),"timer i helikopter"]);
   if(st.longest)tiles.push([st.longest.days+" døgn","lengste opphold",st.longest.name]);
+  { // høytider: julaften først, så de andre
+    const hol=C.holidaysOffshore(STAYS).map(hd=>({...hd,hits:st.y?hd.hits.filter(x=>x.year===st.y):hd.hits})).filter(hd=>hd.hits.length);
+    if(hol.length){const jul=hol.find(hd=>hd.id==="jul"),rest=hol.filter(hd=>hd!==jul);
+      if(career)tiles.splice(2,0,jul?[jul.hits.length+"×","julaften offshore",rest.map(hd=>hd.hits.length+"× "+({nyttar:"nyttår",paske:"påske",mai17:"17. mai",sankthans:"sankthans"}[hd.id]||hd.name)).slice(0,2).join(" · ")]:[hol[0].hits.length+"×",hol[0].name.toLowerCase()+" offshore",rest.map(hd=>hd.hits.length+"× "+hd.name.toLowerCase()).slice(0,2).join(" · ")]);
+      else{const SH={jul:"Jul",nyttar:"Nyttår",paske:"Påske",mai17:"17. mai",sankthans:"Sankthans"},list=jul?[jul,...rest]:hol;
+        tiles.splice(2,0,[list.slice(0,2).map((hd,i)=>i?SH[hd.id].toLowerCase().replace(/^17/,"17"):SH[hd.id]).join(" + "),list.length>2?`og ${list.length-2} til offshore`:"feiret offshore",labelOf(list[0].hits[0].stay.key)])}}
+  }
   if(st.top&&st.insts.size>1)tiles.push([st.top.days+" døgn","mest tid på",st.top.name]);
   if(st.north)tiles.push([nf(st.north.lat,1).replace(",",",")+"°N","lengst nord",st.north.name]);
   if(st.wells.size)tiles.push([nf(st.wells.size),st.wells.size===1?"brønn boret mens du var der":"brønner boret mens du var der"]);
@@ -1565,6 +1572,29 @@ async function renderCard(y){
   const can=!!(navigator.canShare&&navigator.canShare({files:[file]}));$("cardShare").hidden=!can;$("cardSave").classList.toggle("accent",!can);$("cardSave").classList.toggle("ghost",can);
 }
 function openCard(y){S.ui.year=y||null;switchTab("wrap");renderStays();updateMap();fitToContent()}
+
+/* ---------- høytider og merker (Oppsummering) ---------- */
+const MND=["jan.","feb.","mars","apr.","mai","juni","juli","aug.","sep.","okt.","nov.","des."];
+const fmtMonth=iso=>MND[+iso.slice(5,7)-1]+" "+iso.slice(0,4);
+function holidaysHtml(y){
+  const hol=C.holidaysOffshore(STAYS);
+  const rows=hol.map(hd=>{const hits=y?hd.hits.filter(x=>x.year===y):hd.hits;if(!hits.length)return "";
+    const right=y?h(labelOf(hits[0].stay.key)):hits.map(x=>x.year).join(" · ");
+    return `<div class="hol"><span class="hol-n">${y?"✓":hits.length+"×"}</span><span class="hol-name">${h(hd.name)}</span><span class="hol-det">${right}</span></div>`}).join("");
+  const total=hol.reduce((n,hd)=>n+(y?hd.hits.filter(x=>x.year===y).length:hd.hits.length),0);
+  return `<div><p class="eyebrow"><span>Høytider offshore</span>${total?`<span style="text-transform:none;letter-spacing:0">${total} ${plural(total,"gang","ganger")}</span>`:""}</p>
+    ${rows||`<p class="small muted" style="margin:0">${y?`Hjemme i alle høytidene i ${y}.`:"Ingen høytider offshore ennå."}</p>`}</div>`;
+}
+function badgesHtml(y){
+  const all=C.badges({stays:STAYS,legs:S.legs,days:countDays});
+  const got=all.filter(b=>b.date),isNew=b=>y&&b.date&&+b.date.slice(0,4)===y;
+  const order=[...all].sort((a,b)=>(isNew(b)-isNew(a))||(!!b.date-!!a.date)||((a.date||"")<(b.date||"")?-1:1));
+  const nNew=got.filter(isNew).length;
+  return `<div><p class="eyebrow"><span>Merker</span><span style="text-transform:none;letter-spacing:0">${got.length} av ${all.length}${y&&nNew?` · ${nNew} nye i ${y}`:""}</span></p>
+    <div class="badges">${order.map(b=>{
+      const prog=!b.date&&b.need?`<i class="bprog"><b style="width:${Math.round(100*b.have/b.need)}%"></b></i><small>${nf(b.have)} av ${nf(b.need)}</small>`:"";
+      return `<div class="badge${b.date?" on":""}${isNew(b)?" new":""}" title="${h(b.desc)}"><span class="bsym">${h(b.sym)}</span><span class="blab">${h(b.label)}</span>${b.date?`<small>${isNew(b)?"Nytt · ":""}${fmtMonth(b.date)}</small>`:prog||`<small>${h(b.desc)}</small>`}</div>`}).join("")}</div></div>`;
+}
 /* Fanen «Oppsummering»: velg hele karrieren eller et år, se kortet, del det. Året er det samme som i «Mine opphold» og kartet. */
 let WRAP_KEY="";
 function renderWrap(){
@@ -1581,6 +1611,8 @@ function renderWrap(){
     <div class="card-prev"><img id="cardImg" alt="${y?`Mitt år offshore ${y}`:"Min offshorekarriere"}"></div>
     <div class="wrap-actions"><button class="btn accent" type="button" id="cardShare" hidden>Del …</button><button class="btn ghost" type="button" id="cardSave">Last ned bilde</button></div>
     <p class="small muted" style="margin:0">Kortet lages her i nettleseren. Ingenting sendes noe sted før du selv deler det.</p>
+    ${holidaysHtml(y)}
+    ${badgesHtml(y)}
     ${funHtml(y)}`;
   $("cardSave").onclick=()=>{if(CARD_BLOB)download(CARD_BLOB.name,CARD_BLOB.blob,"image/png")};
   $("cardShare").onclick=async()=>{if(!CARD_BLOB)return;try{await navigator.share({files:[new File([CARD_BLOB.blob],CARD_BLOB.name,{type:"image/png"})],title:"Sokkelreiser"})}catch(_){}};

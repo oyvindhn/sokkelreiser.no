@@ -378,3 +378,41 @@ test("innretningshistorikk gir navn og datoer", () => {
   assert.equal(C.histRowAt(rows,"2005-01-01"),null);
   assert.deepEqual(C.histNames(rows).map(n=>n.name),["MÆRSK INSPIRER","INSPIRER"]);
 });
+
+/* ---------- høytider og merker ---------- */
+test("påskedag", () => {
+  assert.equal(C.easterSunday(2024), "2024-03-31");
+  assert.equal(C.easterSunday(2025), "2025-04-20");
+  assert.equal(C.easterSunday(2026), "2026-04-05");
+});
+test("høytider offshore: utreise teller, hjemreise samme dag teller ikke", () => {
+  const st = [
+    { key: "A", start: "2023-12-20", end: "2024-01-03", days: 14, segs: [] },  // jul + nyttår 2023
+    { key: "B", start: "2024-12-24", end: "2025-01-07", days: 14, segs: [] },  // ut julaften: teller
+    { key: "C", start: "2025-12-10", end: "2025-12-24", days: 14, segs: [] },  // hjem julaften: teller ikke
+    { key: "D", start: "2025-05-10", end: "2025-05-24", days: 14, segs: [] },  // 17. mai
+    { key: "E", start: "2025-04-15", end: "2025-04-29", days: 14, segs: [] },  // påske 2025 (20.4)
+  ];
+  const h = Object.fromEntries(C.holidaysOffshore(st).map(x => [x.id, x.hits.map(y => y.year)]));
+  assert.deepEqual(h.jul, [2023, 2024]);
+  assert.deepEqual(h.nyttar, [2023, 2024]);
+  assert.deepEqual(h.mai17, [2025]);
+  assert.deepEqual(h.paske, [2025]);
+  assert.deepEqual(h.sankthans, []);
+});
+test("merker: terskler, hav og fremdrift", () => {
+  const site = (lat, kind = "fixed", facilityId = "") => ({ lat, lon: 3, kind, facilityId });
+  const st = [];
+  for (let i = 0; i < 8; i++) st.push({ key: "K" + (i % 6), start: `202${i % 4}-0${1 + (i % 8)}-01`, end: `202${i % 4}-0${1 + (i % 8)}-15`, days: 14, segs: [{ site: site(i < 6 ? 58 : 66.8) }] });
+  st.push({ key: "K0", start: "2023-10-01", end: "2023-10-22", days: 21, segs: [{ site: site(71.3) }] });
+  st.push({ key: "K0", start: "2023-11-01", end: "2023-11-01", turnback: true, segs: [] });
+  const legs = st.flatMap(s => [{ date: s.start, from: "SVG", to: s.key }, { date: s.end, from: s.key, to: "SVG" }]);
+  const b = Object.fromEntries(C.badges({ stays: st, legs }).map(x => [x.id, x]));
+  assert.ok(b.d100.date, "100 døgn");
+  assert.equal(b.d500.date, null);
+  assert.equal(b.d500.have, 133);
+  assert.ok(b["s-alle"].date && b.polar.date && b.lang.date && b.snudd.date && b.i5.date);
+  assert.equal(b.i10.date, null);
+  assert.equal(b.f50.date, null);
+  assert.equal(b.f50.have, 20);
+});

@@ -353,3 +353,21 @@ dialog::backdrop{background:rgba(10,20,28,.45)}
 .fun-rs{font:500 8px var(--mono,monospace);fill:var(--muted)}
 .fun-cap{font-size:13px;color:var(--muted);line-height:1.35}
 .fun-cap b{color:var(--ink);font-size:16px;font-weight:700}
+
+/* Høytider og merker */
+.hol{display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line)}
+.hol:last-child{border-bottom:0}
+.hol-n{font-family:var(--f-display);font-variation-settings:"wdth" 75;font-weight:700;font-size:20px;color:var(--accent)}
+.hol-name{font-weight:650}
+.hol-det{font-family:var(--f-mono);font-size:11.5px;color:var(--muted);text-align:right}
+.badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px}
+.badge{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;padding:12px 8px 10px;border-radius:12px;border:1px solid var(--line);background:var(--panel);opacity:.62}
+.badge .bsym{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;border:1.5px dashed color-mix(in srgb,var(--ink) 30%,transparent);font-family:var(--f-display);font-variation-settings:"wdth" 75;font-weight:800;font-size:16px;color:var(--muted)}
+.badge .blab{font-size:12px;font-weight:650;line-height:1.2}
+.badge small{font-size:10.5px;color:var(--muted);line-height:1.25}
+.badge.on{opacity:1;background:var(--panel-2)}
+.badge.on .bsym{border:0;background:var(--accent);color:var(--accent-ink);box-shadow:0 0 0 4px var(--accent-soft)}
+.badge.new{border-color:var(--accent)}
+.badge.new small{color:var(--accent);font-weight:650}
+.bprog{display:block;width:70%;height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin-top:2px}
+.bprog b{display:block;height:100%;background:var(--accent)}
