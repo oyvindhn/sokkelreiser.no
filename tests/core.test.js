@@ -340,3 +340,12 @@ test("fartøy uten rigg- eller boligfunksjon er ikke mulige reisemål", () => {
   assert.equal(C.isFlyable({ moveable: true, kind: "VESSEL", functions: "SUPPORT" }), false);
   assert.equal(C.isFlyable({ moveable: true, kind: "VESSEL", functions: "" }), false);
 });
+
+test("titleCase: plattformkoder uten vokal i store bokstaver", () => {
+  assert.equal(C.titleCase("VALHALL PH"), "Valhall PH");
+  assert.equal(C.titleCase("EKOFISK 2/4 QP"), "Ekofisk 2/4 QP");
+  assert.equal(C.titleCase("GULLFAKS A"), "Gullfaks A");
+  assert.equal(C.titleCase("DRAUPNER S"), "Draupner S");
+  assert.equal(C.titleCase("MÆRSK GUARDIAN"), "Maersk Guardian");
+  assert.equal(C.titleCase("TROLL B"), "Troll B");
+});
