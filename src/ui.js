@@ -307,7 +307,9 @@ function koderPayload(){
   for(const p of Object.values(S.places)){
     if(!p.link||p.kind!=="installation")continue;
     if(p.link.type==="sodir"){const f=D.facById.get(p.link.id);if(f)koder[p.raw]={navn:f.name,sodirId:f.id}}
-    else if(p.link.type==="follow"){const o=S.places[p.link.key];if(o)koder[p.raw]={navn:p.label,ved:o.raw}}
+    else if(p.link.type==="follow"){const o=S.places[p.link.key];if(!o)continue;
+      const per=(p.link.periods||[]).map(q=>{const t=S.places[q.key];return t?{ved:t.raw,...(q.fra?{fra:q.fra}:{}),...(q.til?{til:q.til}:{})}:null}).filter(Boolean);
+      koder[p.raw]={navn:p.label,ved:per.length?per:o.raw}}
   }
   return koder;
 }
@@ -321,21 +323,28 @@ function looseName(navn){
   hits.sort((a,b)=>(a.moveable-b.moveable)||((b.phase==="IN SERVICE")-(a.phase==="IN SERVICE"))||a.name.length-b.name.length);
   return hits[0]||null;
 }
+/* «ved» kan være «SKV» eller en liste [{ved:"SKV",fra:"2019-05-01",til:"2019-09-30"}, …] for boligrigger som flytter. */
+function codeVed(e){const v=e&&e.ved;if(!v)return [];
+  return (Array.isArray(v)?v:[{ved:v}]).map(x=>typeof x==="string"?{ved:x}:x).filter(x=>x&&x.ved).map(x=>({ved:x.ved,fra:x.fra||"",til:x.til||""}))}
+function followTarget(l,date){
+  if(!l.periods||!l.periods.length)return l.key;
+  const q=l.periods.find(x=>(!x.fra||date>=x.fra)&&(!x.til||date<=x.til));return q?q.key:null}
 function applyCodeList(){
   if(!D.facilities.length)return 0;let n=0;
   const byName=new Map(D.facilities.map(f=>[C.normName(f.name),f]));
   const todo=p=>p&&(!p.link||p.auto)&&!(p.kindEdited&&p.kind==="base");
   for(const k in CODES){   // 1. koblinger til Sodir
     const p=S.places[C.placeKey(k)];if(!todo(p))continue;
-    const e=CODES[k]||{};if(e.ved&&!e.sodirId)continue;
+    const e=CODES[k]||{};if(codeVed(e).length&&!e.sodirId)continue;
     const f=(e.sodirId&&D.facById.get(String(e.sodirId)))||byName.get(C.normName(e.navn||""))||looseName(e.navn);
     if(!f)continue;
     p.link={type:"sodir",id:f.id};p.auto=false;p.kind="installation";if(!p.labelEdited)p.label=C.titleCase(f.name);n++;
   }
   for(const k in CODES){   // 2. «ligger ved»: boligrigg uten egen posisjon
-    const p=S.places[C.placeKey(k)],e=CODES[k]||{};if(!e.ved||!todo(p))continue;
-    const tgt=S.places[C.placeKey(e.ved)];if(!tgt||!tgt.link||tgt.key===p.key)continue;
-    p.link={type:"follow",key:tgt.key};p.auto=false;p.kind="installation";if(!p.labelEdited)p.label=e.navn?C.titleCase(e.navn):p.raw;n++;
+    const p=S.places[C.placeKey(k)],e=CODES[k]||{},vs=codeVed(e);if(!vs.length||!todo(p))continue;
+    const periods=vs.map(v=>({key:C.placeKey(v.ved),fra:v.fra,til:v.til})).filter(v=>{const t=S.places[v.key];return t&&t.link&&t.key!==p.key});
+    if(!periods.length)continue;
+    p.link=periods.length===1&&!periods[0].fra&&!periods[0].til?{type:"follow",key:periods[0].key}:{type:"follow",key:periods[0].key,periods};p.auto=false;p.kind="installation";if(!p.labelEdited)p.label=e.navn?C.titleCase(e.navn):p.raw;n++;
   }
   return n;
 }
@@ -376,7 +385,7 @@ const MOVABLE_KIND=/JACK|MOPU|SEMISUB|VESSEL|SHIP|DRILL/i,FLOATING_KIND=/FPSO|FS
 function hasHistory(f){return MOVABLE_KIND.test(f.kind)||FLOATING_KIND.test(f.kind)||!!(D.actRows&&D.actRows.has(f.id))}
 async function prefetchForStays(stays){
   const ids=new Set();
-  const want=(key,depth=0)=>{const p=S.places[key];if(!p||!p.link||depth>3)return;if(p.link.type==="sodir"){const f=D.facById.get(p.link.id);if(f&&(f.moveable||hasHistory(f)))ids.add(f.id)}if(p.link.type==="follow")want(p.link.key,depth+1)};
+  const want=(key,depth=0)=>{const p=S.places[key];if(!p||!p.link||depth>3)return;if(p.link.type==="sodir"){const f=D.facById.get(p.link.id);if(f&&(f.moveable||hasHistory(f)))ids.add(f.id)}if(p.link.type==="follow"){want(p.link.key,depth+1);for(const q of p.link.periods||[])want(q.key,depth+1)}};
   for(const s of stays)want(s.key);
   const fields=new Set();for(const p of Object.values(S.places))if(p.link&&p.link.type==="sodir"){const f=D.facById.get(p.link.id);if(f&&!f.moveable&&f.belongsTo)fields.add(f.belongsTo)}
   await Promise.all([...[...ids].map(id=>timelineFor(id)),...[...fields].map(fieldBlock)]);
@@ -390,7 +399,9 @@ function resolveStay(stay,key=stay.key,depth=0){
   if(l.type==="manual")return [{site:{id:"P:"+key,lat:l.lat,lon:l.lon,name:p.label,kind:"manual"},start:stay.start,end:stay.end,conf:"manuell",note:"Fast posisjon du har satt for installasjonen."}];
   if(l.type==="follow"){
     if(depth>3)return [{site:null,start:stay.start,end:stay.end,conf:"ukjent",note:"Koblingen går i ring."}];
-    return resolveStay(stay,l.key,depth+1).map(s=>({...s,note:`Lå ved ${labelOf(l.key)}. `+s.note}));
+    const tk=followTarget(l,stay.start);
+    if(!tk)return [{site:null,start:stay.start,end:stay.end,conf:"ukjent",note:"Ingen kjent plassering for denne boligriggen på denne datoen."}];
+    return resolveStay(stay,tk,depth+1).map(s=>({...s,note:`Lå ved ${labelOf(tk)}. `+s.note}));
   }
   const f=D.facById.get(l.id);
   if(!f)return [{site:null,start:stay.start,end:stay.end,conf:"ukjent",note:D.status==="err"?"Sodir-data er ikke tilgjengelig.":"Laster Sodir-data …"}];
