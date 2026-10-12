@@ -799,7 +799,7 @@ function stayRow(s){
   let html=`<div class="stay${sel?" sel":""}" role="button" tabindex="0" data-stay="${h(s.id)}" aria-expanded="${sel}">
     <div class="when">${when}</div>
     <div class="what"><div class="inst">${instTitle(s,p)}</div><div class="where">${h(where)} ${pill(conf)}</div></div>
-    <div class="days">${s.days}<small>døgn</small></div>`;
+    <div class="days${s.long?" long":s.over?" over":""}"${s.long?' title="Over 5 uker: sjekk om en reise mangler i arket"':s.over?' title="Over 21 døgn"':""}>${s.days}<small>døgn${s.long?" ?":""}</small></div>`;
   if(sel)html+=stayDetail(s);
   return html+`</div>`;
 }
@@ -842,7 +842,7 @@ function stayDetail(s){
       return `<div class="leg"><div class="mono">${C.fmtDate(l.date)}${t?" · "+h(t):""}${l.route?" · "+h(l.route):""}</div><div>${h(nm(l.from||""))}${l.from||l.to?" → ":""}${h(nm(l.to||l.inst))}</div>${sub.length?`<div class="muted">${sub.map(h).join(" · ")}</div>`:""}</div>`};
     html+=`<div class="small"><div class="muted" style="margin-bottom:3px">Reiser i loggen</div>${legs.map(line).join("")}</div>`;
   }
-  if(!s.startKnown||!s.endKnown||s.long)html+=`<div class="note">${!s.startKnown?"Loggen mangler utreisen. ":""}${!s.endKnown?(s.ongoing?"Ingen hjemreise registrert ennå. ":"Loggen mangler hjemreisen. "):""}${s.long?"Oppholdet er uvanlig langt – kanskje mangler en reise i loggen.":""}</div>`;
+  if(!s.startKnown||!s.endKnown||s.over)html+=`<div class="note">${!s.startKnown?"Loggen mangler utreisen. ":""}${!s.endKnown?(s.ongoing?"Ingen hjemreise registrert ennå. ":"Loggen mangler hjemreisen. "):""}${s.long?"Over fem uker offshore er svært uvanlig. Trolig mangler en hjemreise og en utreise i arket.":s.over?"Lengre enn maks oppholdsperiode på 21 døgn, f.eks. på grunn av vær.":""}</div>`;
   const p=S.places[s.key];const mob=s.segs.find(g=>g.site&&g.site.kind==="mobile");
   html+=`<div class="row">
     <button class="btn small ghost" type="button" data-act="pickstay" data-id="${h(s.id)}">${S.overrides[s.id]?"Flytt manuell posisjon":"Sett posisjon for denne turen"}</button>

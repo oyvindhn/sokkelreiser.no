@@ -247,3 +247,6 @@ dialog::backdrop{background:rgba(10,20,28,.45)}
 
 .stay.turnback .inst{color:var(--muted);font-weight:600}
 .stay.turnback .days{opacity:.5}
+
+.stay .days.over{color:var(--warn)}
+.stay .days.long{color:var(--bad)}

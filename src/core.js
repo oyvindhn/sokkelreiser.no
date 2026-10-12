@@ -374,7 +374,8 @@ function buildStays(legs,kindOf){
     delete s.lastSeen;
     s.days=Math.max(0,diffDays(s.start,s.end));
     s.id=s.key+"@"+s.start+(s.turnback?"#"+s.legs[0].i:"");
-    s.long=s.days>45;
+    // maks oppholdsperiode er 21 døgn; vær kan forlenge. Over 5 uker skjer nesten aldri: trolig mangler en reise i arket.
+    s.over=s.days>21;s.long=s.days>35;
   }
   return stays;
 }
