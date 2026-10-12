@@ -262,3 +262,42 @@ test("lokasjonsnavn: prospekt fra historikken går foran funn og felt", () => {
   s.prospect = "Testby"; C.nameSite(s);
   assert.equal(s.name, "9/9-1 Testby");
 });
+
+test("hjemreise fra en annen installasjon (gangbro) hører til samme opphold", () => {
+  const k = { SVG: "base", BNN: "base", SKV: "installation", FED: "installation" };
+  const legs = [
+    { i: 1, date: "2026-03-11", from: "BNN", to: "SKV" },
+    { i: 0, date: "2026-03-27", from: "FED", to: "BNN" },
+  ];
+  const s = C.buildStays(legs, (x) => k[x]);
+  assert.equal(s.length, 1);
+  assert.equal(s[0].key, "SKV");
+  assert.equal(s[0].days, 16);
+  assert.ok(s[0].endKnown);
+  assert.equal(s[0].homeFrom, "FED");
+});
+
+test("SVG–SVG (helikopteret snudde) vises, uten overnatting, og ny utreise samme dag teller", () => {
+  const k = { SVG: "base", SLA: "installation" };
+  const legs = [
+    { i: 2, date: "2026-02-01", from: "SVG", to: "SVG", dep: "07:30" },
+    { i: 1, date: "2026-02-01", from: "SVG", to: "SLA", dep: "13:10" },
+    { i: 0, date: "2026-02-15", from: "SLA", to: "SVG", dep: "12:00" },
+  ];
+  const s = C.buildStays(legs, (x) => k[x]);
+  assert.equal(s.length, 2);
+  assert.ok(s[0].turnback);
+  assert.equal(s[0].days, 0);
+  assert.equal(s[1].key, "SLA");
+  assert.equal(s[1].days, 14);
+});
+
+test("samme dag uten tider: arket nyeste først snus riktig", () => {
+  const t = { body: [
+    ["15.02.2026", "", "", "", "SLA", "SVG"],
+    ["01.02.2026", "", "", "", "SVG", "SLA"],
+    ["01.02.2026", "", "", "", "SVG", "SVG"],
+  ] };
+  const legs = C.buildLegs(t, { date: 0, from: 4, to: 5 }, false);
+  assert.deepEqual(legs.map((l) => l.from + l.to), ["SVGSVG", "SVGSLA", "SLASVG"]);
+});

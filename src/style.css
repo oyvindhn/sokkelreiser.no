@@ -244,3 +244,6 @@ dialog::backdrop{background:rgba(10,20,28,.45)}
 
 .menu .menu-link{display:block;padding:8px 12px;color:inherit;text-decoration:none;font-size:inherit}
 .menu .menu-link:hover{background:var(--hover,rgba(127,127,127,.15))}
+
+.stay.turnback .inst{color:var(--muted);font-weight:600}
+.stay.turnback .days{opacity:.5}

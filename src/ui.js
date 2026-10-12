@@ -393,6 +393,7 @@ async function prefetchForStays(stays){
 function resolveStay(stay,key=stay.key,depth=0){
   const ov=S.overrides[stay.id];
   if(ov&&depth===0)return [{site:{id:"O:"+stay.id,lat:ov.lat,lon:ov.lon,name:ov.label||labelOf(stay.key),kind:"manual"},start:stay.start,end:stay.end,conf:"manuell",note:"Posisjon satt manuelt for denne turen."}];
+  if(stay.turnback&&depth===0)return [{site:null,start:stay.start,end:stay.end,conf:"avbrutt",note:`Helikopteret returnerte til ${stay.legs[0].from} uten å lande offshore (trolig vær). Ingen overnatting.`}];
   const p=S.places[key];
   if(!p||!p.link)return [{site:null,start:stay.start,end:stay.end,conf:"ukjent",note:"Installasjonen er ikke koblet til Sodir eller en posisjon ennå."}];
   const l=p.link;
@@ -752,12 +753,12 @@ function renderStays(){
   const y=S.ui.year;const vis=STAYS.filter(s=>inYear(s,y));
   const byYear={};for(const s of STAYS){const yr=+s.start.slice(0,4);byYear[yr]=(byYear[yr]||0)+s.days}
   const days=vis.reduce((n,s)=>n+s.days,0);
-  const sites=new Set();const insts=new Set();for(const s of vis){insts.add(s.key);for(const g of s.segs)if(g.site)sites.add(g.site.id)}
+  const sites=new Set();const insts=new Set();for(const s of vis){if(!s.turnback)insts.add(s.key);for(const g of s.segs)if(g.site)sites.add(g.site.id)}
   const need=Object.values(S.places).filter(p=>p.kind==="installation"&&!p.link).length;
-  const unknown=vis.filter(s=>s.segs.every(g=>!g.site)).length;
+  const unknown=vis.filter(s=>!s.turnback&&s.segs.every(g=>!g.site)).length;const trips=vis.filter(s=>!s.turnback).length;
   let html=`<div class="stats">
     <div class="stat"><b>${days}</b><span>døgn</span></div>
-    <div class="stat"><b>${vis.length}</b><span>${plural(vis.length,"tur","turer")}</span></div>
+    <div class="stat"><b>${trips}</b><span>${plural(trips,"tur","turer")}</span></div>
     <div class="stat"><b>${insts.size}</b><span>${plural(insts.size,"innretning","innretninger")}</span></div>
     <div class="stat"><b>${sites.size}</b><span>${plural(sites.size,"lokasjon","lokasjoner")}</span></div></div>`;
   if(need)html+=`<div class="answer">${need} ${plural(need,"installasjon","installasjoner")} i loggen kunne ikke kobles sikkert automatisk.${D.status==="err"?" Sodir svarer ikke akkurat nå, men du kan plassere dem i kartet selv eller laste inn Sodir-data som fil.":""} <button class="linkish" type="button" data-act="placestab">Se forslag</button></div>`;
@@ -765,8 +766,8 @@ function renderStays(){
   html+=`<div class="hist"><p class="eyebrow"><span>Døgn offshore per år</span>${y?`<button class="linkish" type="button" data-act="allyears">Vis alle år</button>`:`<span style="text-transform:none;letter-spacing:0">Trykk på et år for å filtrere</span>`}</p>${histogram(byYear,y)}</div>`;
   const groups=new Map();for(const s of vis.slice().reverse()){const yr=s.start.slice(0,4);if(!groups.has(yr))groups.set(yr,[]);groups.get(yr).push(s)}
   for(const [yr,list] of groups){
-    const d=list.reduce((n,s)=>n+s.days,0);
-    html+=`<div class="year-group"><div class="year-head"><h3>${yr}</h3><span>${list.length} ${plural(list.length,"tur","turer")} · ${d} døgn</span></div>`;
+    const d=list.reduce((n,s)=>n+s.days,0),nt=list.filter(s=>!s.turnback).length,nb=list.length-nt;
+    html+=`<div class="year-group"><div class="year-head"><h3>${yr}</h3><span>${nt} ${plural(nt,"tur","turer")}${nb?` · ${nb} snudd`:""} · ${d} døgn</span></div>`;
     for(const s of list)html+=stayRow(s);
     html+=`</div>`;
   }
@@ -789,6 +790,11 @@ function stayRow(s){
   const own=p&&p.link&&p.link.type==="sodir"?p.link.id:null;
   const where=segs.some(g=>g.site)?segs.filter(g=>g.site).map(g=>g.site.kind==="fixed"?(g.site.facilityId===own?"":g.site.place||g.site.name):[g.site.name,g.site.operatorShort].filter(Boolean).join(" • ")).filter((x,i,a)=>x&&C.normName(x)!==C.normName(title)&&a.indexOf(x)===i).join(" → "):"Posisjon ukjent";
   const conf=segs.reduce((w,g)=>{const r={ukjent:0,usikker:1,trolig:2,manuell:3,sikker:4};return r[g.conf]<r[w]?g.conf:w},"sikker");
+  if(s.turnback){const l=s.legs[0];
+    return `<div class="stay turnback${sel?" sel":""}" role="button" tabindex="0" data-stay="${h(s.id)}" aria-expanded="${sel}">
+    <div class="when">${C.fmtDate(s.start,false)}</div>
+    <div class="what"><div class="inst">Snudde · ${h(l.from)}–${h(l.to)}</div><div class="where">${h([l.dep,l.route].filter(Boolean).join(" · ")||"Ingen landing offshore")}</div></div>
+    <div class="days">0<small>døgn</small></div>${sel?stayDetail(s):""}</div>`}
   const when=`${C.fmtDate(s.start,false)}${s.startKnown?"":"?"}<br>${C.fmtDate(s.end,false)}${s.endKnown?"":"?"}`;
   let html=`<div class="stay${sel?" sel":""}" role="button" tabindex="0" data-stay="${h(s.id)}" aria-expanded="${sel}">
     <div class="when">${when}</div>
@@ -816,8 +822,8 @@ function stayDetail(s){
         ${st.depth!=null?`<dt>Havdyp</dt><dd class="mono">${st.depth} m</dd>`:""}
         <dt>Posisjon</dt><dd class="mono">${fmtPos(st.lat,st.lon)}</dd>
       </dl>`;
-    }else html+=`<div><b>Posisjon ukjent</b> ${pill(g.conf)}</div>`;
-    html+=`<div class="note">${h(g.note||"")}</div>`;
+    }else if(g.conf!=="avbrutt")html+=`<div><b>Posisjon ukjent</b> ${pill(g.conf)}</div>`;
+    html+=`<div class="note">${h(g.note||"")}${s.homeFrom&&g===s.segs[s.segs.length-1]?` Reiste hjem fra ${h(labelOf(C.placeKey(s.homeFrom)))}.`:""}</div>`;
     const links=[];
     if(g.site&&g.site.kind==="mobile"){const w=(g.visit?g.visit.wells:g.site.wells)[0];if(w&&w.url)links.push(`<a href="${h(w.url)}" target="_blank" rel="noopener">Brønnen hos Sodir ↗</a>`)}
     if(g.site&&g.site.press)links.push(`<a href="${h(g.site.press)}" target="_blank" rel="noopener">Pressemelding fra Sodir ↗</a>`);

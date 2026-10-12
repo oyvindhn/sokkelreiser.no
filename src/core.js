@@ -234,7 +234,9 @@ function buildLegs(table,cols,date1904){
     const dir=DIR_OUT.test(dirRaw)?"out":DIR_IN.test(dirRaw)?"in":"";
     legs.push({i,date,from,to,inst,dir,dirRaw,status,route:clean(g(r,"route")),dep:fmtTime(g(r,"dep")),arr:fmtTime(g(r,"arr")),checked:fmtTime(g(r,"checked"))||clean(g(r,"checked")),tripType:clean(g(r,"tripType")),company:clean(g(r,"company")),purpose:clean(g(r,"purpose")),ref:clean(g(r,"ref")),cancelled:CANCEL_RE.test(status)});
   });
-  legs.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.i-b.i);
+  // MinDaVinci lister nyeste først. Samme dag: avgangstid avgjør, ellers arkets rekkefølge snudd riktig vei.
+  const desc=legs.length>1&&legs[0].date>legs[legs.length-1].date;
+  legs.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(a.dep&&b.dep&&a.dep!==b.dep)?(a.dep<b.dep?-1:1):desc?b.i-a.i:a.i-b.i);
   return legs;
 }
 
@@ -337,6 +339,10 @@ function buildStays(legs,kindOf){
     if(hasEnds){
       const fk=l.from?placeKey(l.from):"",tk=l.to?placeKey(l.to):"";
       const fI=fk&&kindOf(fk)==="installation",tI=tk&&kindOf(tk)==="installation";
+      // helikopteret snudde (SVG–SVG): med i lista, men ingen overnatting og ingen installasjon
+      if(fk&&fk===tk&&!fI){stays.push({key:fk,start:l.date,end:l.date,startKnown:true,endKnown:true,legs:[l],turnback:true});continue}
+      // hjem fra en annen installasjon enn den du reiste ut til (f.eks. boligrigg på gangbro): samme opphold
+      if(fI&&!tI&&tk&&cur&&cur.key!==fk){cur.homeFrom=l.from;close(l.date,l);continue}
       if(fI){
         if(cur&&cur.key===fk){ if(!(tI&&tk===fk)) close(l.date,l) }
         else if(!(tI&&tk===fk)){ // left an installation we never saw arriving at
@@ -367,7 +373,7 @@ function buildStays(legs,kindOf){
     if(!s.end){s.end=s.start>today?s.start:(diffDays(s.start,today)<=28?today:s.start);s.endKnown=false;s.ongoing=diffDays(s.start,today)<=28}
     delete s.lastSeen;
     s.days=Math.max(0,diffDays(s.start,s.end));
-    s.id=s.key+"@"+s.start;
+    s.id=s.key+"@"+s.start+(s.turnback?"#"+s.legs[0].i:"");
     s.long=s.days>45;
   }
   return stays;
