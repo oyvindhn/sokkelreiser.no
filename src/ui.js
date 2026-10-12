@@ -755,7 +755,7 @@ function renderStays(){
   const days=vis.reduce((n,s)=>n+s.days,0);
   const sites=new Set();const insts=new Set();for(const s of vis){if(!s.turnback)insts.add(s.key);for(const g of s.segs)if(g.site)sites.add(g.site.id)}
   const need=Object.values(S.places).filter(p=>p.kind==="installation"&&!p.link).length;
-  const unknown=vis.filter(s=>!s.turnback&&s.segs.every(g=>!g.site)).length;const trips=vis.filter(s=>!s.turnback).length;
+  const unknown=vis.filter(s=>!s.turnback&&s.segs.every(g=>!g.site)).length;const trips=vis.length;
   let html=`<div class="stats">
     <div class="stat"><b>${days}</b><span>døgn</span></div>
     <div class="stat"><b>${trips}</b><span>${plural(trips,"tur","turer")}</span></div>
@@ -766,8 +766,8 @@ function renderStays(){
   html+=`<div class="hist"><p class="eyebrow"><span>Døgn offshore per år</span>${y?`<button class="linkish" type="button" data-act="allyears">Vis alle år</button>`:`<span style="text-transform:none;letter-spacing:0">Trykk på et år for å filtrere</span>`}</p>${histogram(byYear,y)}</div>`;
   const groups=new Map();for(const s of vis.slice().reverse()){const yr=s.start.slice(0,4);if(!groups.has(yr))groups.set(yr,[]);groups.get(yr).push(s)}
   for(const [yr,list] of groups){
-    const d=list.reduce((n,s)=>n+s.days,0),nt=list.filter(s=>!s.turnback).length,nb=list.length-nt;
-    html+=`<div class="year-group"><div class="year-head"><h3>${yr}</h3><span>${nt} ${plural(nt,"tur","turer")}${nb?` · ${nb} snudd`:""} · ${d} døgn</span></div>`;
+    const d=list.reduce((n,s)=>n+s.days,0),nt=list.length,nb=list.filter(s=>s.turnback).length;
+    html+=`<div class="year-group"><div class="year-head"><h3>${yr}</h3><span>${nt} ${plural(nt,"tur","turer")}${nb?` (${nb} snudd)`:""} · ${d} døgn</span></div>`;
     for(const s of list)html+=stayRow(s);
     html+=`</div>`;
   }
