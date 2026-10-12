@@ -215,10 +215,13 @@ dialog::backdrop{background:rgba(10,20,28,.45)}
 .preview th,.preview td{padding:4px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
 .preview th{position:sticky;top:0;background:var(--panel-2);font-weight:650}
 .err{color:var(--bad);font-size:12.5px}
-dialog.dlg-card{width:min(520px,calc(100vw - 24px))}
-.card-head{display:flex;justify-content:space-between;align-items:center;gap:12px}
-.card-head .input{width:auto;min-width:170px}
-.card-prev{border-radius:12px;overflow:hidden;background:#0b1a24;aspect-ratio:4/5;max-height:62vh;display:grid;place-items:center}
+.wrap-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.wrap-head h2{margin:0;font-family:var(--f-display);font-variation-settings:"wdth" 88;font-size:24px;font-weight:700;line-height:1.05}
+.wrap-years{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -2px;padding:2px}
+.wrap-years .chip{flex:none}
+.wrap-actions{display:flex;gap:8px}.wrap-actions .btn{flex:1}
+.back-link{align-self:flex-start;text-decoration:none;font-size:13px}
+.card-prev{border-radius:14px;overflow:hidden;background:#0b1a24;aspect-ratio:4/5;display:grid;place-items:center;box-shadow:var(--shadow)}
 .card-prev img{display:block;width:100%;height:100%;object-fit:contain}
 .fun-card{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:4px;height:40px;border-radius:9px;border:1px dashed color-mix(in srgb,var(--accent) 55%,transparent);background:var(--accent-soft);color:var(--ink);font-weight:650;font-size:13px;cursor:pointer}
 .fun-card:hover{border-style:solid}
