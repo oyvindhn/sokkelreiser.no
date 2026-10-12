@@ -183,6 +183,19 @@
     "kilde": "Transocean overtok Aker Drilling i oktober 2011 (Wikipedia). Selve navnebyttet er ikke datert",
     "url": "https://en.wikipedia.org/wiki/Aker_Drilling"
    }
+  ],
+  [
+   {
+    "navn": "Maersk Reacher",
+    "til": "2022-10-02"
+   },
+   {
+    "navn": "Noble Reacher",
+    "fra": "2022-10-03",
+    "presisjon": "ca",
+    "kilde": "Navnebytte satt til fusjonen mellom Maersk Drilling og Noble (3.10.2022). Bekreftet av bruker; ingen egen kilde funnet",
+    "url": "https://apmoller.com/news/maersk-drilling-becomes-noble/"
+   }
   ]
  ]
 }
