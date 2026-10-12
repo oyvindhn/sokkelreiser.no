@@ -51,6 +51,25 @@
   },
   "HAVN": {
    "navn": "HAVEN"
+  },
+  "ULA": {
+   "navn": "ULA PP",
+   "visning": "Ula"
+  },
+  "TAM": {
+   "navn": "TAMBAR"
+  },
+  "IAA": {
+   "navn": "IVAR AASEN"
+  },
+  "TRA": {
+   "navn": "TROLL A"
+  },
+  "TRB": {
+   "navn": "TROLL B"
+  },
+  "TRC": {
+   "navn": "TROLL C"
   }
  }
 }
