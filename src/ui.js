@@ -301,6 +301,16 @@ function autoLink(){
   return n;
 }
 let NEIGH=new Map();
+/* Koblinger som kan deles: kode -> Sodir-navn, eller «ligger ved» en annen kode. Kun koder, aldri reiser. */
+function koderPayload(){
+  const koder={};
+  for(const p of Object.values(S.places)){
+    if(!p.link||p.kind!=="installation")continue;
+    if(p.link.type==="sodir"){const f=D.facById.get(p.link.id);if(f)koder[p.raw]={navn:f.name,sodirId:f.id}}
+    else if(p.link.type==="follow"){const o=S.places[p.link.key];if(o)koder[p.raw]={navn:p.label,ved:o.raw}}
+  }
+  return koder;
+}
 /* Kodeliste: koder som tidligere er koblet (koder.json ligger ved siden av siden og kan utvides). */
 let CODES={};
 async function loadCodeList(){try{const r=await fetch("koder.json",{cache:"no-cache"});if(!r.ok)return;const j=await r.json();CODES=(j&&j.koder)||{}}catch(_){}}
@@ -314,11 +324,18 @@ function looseName(navn){
 function applyCodeList(){
   if(!D.facilities.length)return 0;let n=0;
   const byName=new Map(D.facilities.map(f=>[C.normName(f.name),f]));
-  for(const k in CODES){
-    const p=S.places[C.placeKey(k)];if(!p||(p.link&&!p.auto)||(p.kindEdited&&p.kind==="base"))continue;   // kodelisten går foran automatiske koblinger
-    const e=CODES[k]||{};const f=(e.sodirId&&D.facById.get(String(e.sodirId)))||byName.get(C.normName(e.navn||""))||looseName(e.navn);
+  const todo=p=>p&&(!p.link||p.auto)&&!(p.kindEdited&&p.kind==="base");
+  for(const k in CODES){   // 1. koblinger til Sodir
+    const p=S.places[C.placeKey(k)];if(!todo(p))continue;
+    const e=CODES[k]||{};if(e.ved&&!e.sodirId)continue;
+    const f=(e.sodirId&&D.facById.get(String(e.sodirId)))||byName.get(C.normName(e.navn||""))||looseName(e.navn);
     if(!f)continue;
     p.link={type:"sodir",id:f.id};p.auto=false;p.kind="installation";if(!p.labelEdited)p.label=C.titleCase(f.name);n++;
+  }
+  for(const k in CODES){   // 2. «ligger ved»: boligrigg uten egen posisjon
+    const p=S.places[C.placeKey(k)],e=CODES[k]||{};if(!e.ved||!todo(p))continue;
+    const tgt=S.places[C.placeKey(e.ved)];if(!tgt||!tgt.link||tgt.key===p.key)continue;
+    p.link={type:"follow",key:tgt.key};p.auto=false;p.kind="installation";if(!p.labelEdited)p.label=e.navn?C.titleCase(e.navn):p.raw;n++;
   }
   return n;
 }
@@ -1076,9 +1093,14 @@ document.addEventListener("click",async e=>{
   else if(act==="csv")download("sokkelreiser-opphold.csv","﻿"+C.toCSV(stayTable()),"text/csv;charset=utf-8");
   else if(act==="copy")copyText(C.toCSV(stayTable(),"\t"));
   else if(act==="save")download("sokkelreiser-prosjekt.json",JSON.stringify({app:"sokkelreiser",version:1,saved:new Date().toISOString(),sourceName:S.sourceName,legs:S.legs,places:S.places,manual:S.manual,overrides:S.overrides}),"application/json");
-  else if(act==="koder"){
-    const koder={};for(const p of Object.values(S.places))if(p.link&&p.link.type==="sodir"){const f=D.facById.get(p.link.id);if(f)koder[p.raw]={sodirId:f.id,navn:f.name}}
-    download("koder.json",JSON.stringify({app:"sokkelreiser",version:1,koder},null,2),"application/json");
+  else if(act==="koder")download("koder.json",JSON.stringify({app:"sokkelreiser",version:1,koder:koderPayload()},null,2),"application/json");
+  else if(act==="share"){
+    const k=koderPayload();if(!Object.keys(k).length){toast("Du har ingen koblinger å dele ennå.");return}
+    confirmDialog("Foreslå koder til kodelisten","Det som sendes er bare kodene og navnene de er koblet til (for eksempel «SKV → SKARV»). Ingen datoer, reiser, firma eller personopplysninger. Du åpner et ferdig utfylt forslag hos GitHub, og du bestemmer selv om du sender det.","Åpne forslag",()=>{
+      const body="Koder fra min logg og innretningene de hører til hos Sodir:\n\n```json\n"+JSON.stringify(k,null,2)+"\n```\n";
+      const url="https://github.com/oyvindhn/sokkelreiser.no/issues/new?title="+encodeURIComponent("Forslag til kodelisten")+"&body="+encodeURIComponent(body);
+      if(!window.open(url,"_blank","noopener"))copyText(JSON.stringify(k,null,2));
+    });
   }
   else if(act==="sodir"){const ok=await loadFacilities(true);if(ok){await Promise.all([loadAliases(true),loadActivity(true)]);autoLink();persist();await recompute();toast("Sodir-data er oppdatert.")}else toast("Fikk ikke kontakt med Sodir.")}
   else if(act==="clear")confirmDialog("Slette alle data?","Reiseloggen, koblingene og lagret Sodir-data fjernes fra denne nettleseren. Lagre en prosjektfil først hvis du vil beholde arbeidet.","Slett alt",()=>{for(const k of store.keys())store.del(k);location.reload()});
