@@ -660,15 +660,16 @@ class Chart{
       ctx.globalAlpha=1;
       this.hits.push({x,y,r:r+HIT_PAD,m});
     }
-    // etiketter: kort kode (MGU, NIT) som standard; full tekst ved hover, på valgt punkt eller når «Fulle navn» er på
+    // etiketter: faste installasjoner med navn, rigger med kort kode (MGU, NIT); full tekst ved hover, på valgt punkt eller når «Fulle navn» er på
     const boxes=[];ctx.textBaseline="middle";const portFont=`500 10.5px ${col.mono}`,instFont=`600 11.5px ${col.body}`,tagFont=`600 11px ${col.mono}`;
-    const full=m=>m.id===this.hoverId||m.sel||this.fullNames;
+    // faste installasjoner har korte, kjente navn (Gullfaks A, Draupner S) og vises med fullt navn når det er plass; rigger med kode
+    const full=m=>m.id===this.hoverId||m.sel||this.fullNames||(m.fixed&&this.z>=4.6);
     const order=ms.slice().sort((a,b)=>(b.id===this.hoverId?1:0)-(a.id===this.hoverId?1:0)||(b.sel?1:0)-(a.sel?1:0)||(b.port?1:0)-(a.port?1:0)||(b.days||0)-(a.days||0));
     for(const m of order){
       const isFull=!m.port&&full(m),text=m.port?m.label:isFull?m.label:(m.short||m.label);
       if(!text||(m.dim&&!m.sel&&m.id!==this.hoverId))continue;
       if(!m.port&&!isFull&&this.z<4.2)continue;
-      if(isFull&&this.z<5.2&&!m.sel&&m.id!==this.hoverId)continue;
+      if(isFull&&this.z<(m.fixed?4.6:5.2)&&!m.sel&&m.id!==this.hoverId)continue;
       ctx.font=m.port?portFont:isFull?instFont:tagFont;const [x,y]=this.toScreen(m.lat,m.lon);
       const lines=isFull&&m.lines&&m.lines.length?m.lines:[text];
       const tw=Math.max(...lines.map(l=>ctx.measureText(l).width)),LH=15,bh=lines.length*LH+2;const bx=x+m.r+5,by=y-bh/2,bw=tw+8;

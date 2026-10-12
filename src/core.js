@@ -501,7 +501,8 @@ function rigTimeline(facId,wellbores){
   }
   return {sites,visits,siteById:Object.fromEntries(sites.map(s=>[s.id,s]))};
 }
-function titleCase(s){return String(s||"").toLowerCase().replace(/(^|[\s\-\/(])([a-zæøå])/g,(m,a,b)=>a+b.toUpperCase()).replace(/\bMærsk\b/g,"Maersk").replace(/\b(Fpso|Fso|Fpu|Mopu|Fsu|Tlp|Ii|Iii|Iv|Vi|Vii|Viii|Ix)\b/g,m=>m.toUpperCase())}
+function titleCase(s){return String(s||"").toLowerCase().replace(/(^|[\s\-\/(])([a-zæøå])/g,(m,a,b)=>a+b.toUpperCase()).replace(/\bMærsk\b/g,"Maersk").replace(/\b(Fpso|Fso|Fpu|Mopu|Fsu|Tlp|Ii|Iii|Iv|Vi|Vii|Viii|Ix)\b/g,m=>m.toUpperCase())
+  .replace(/(^|[\s\-\/(])([B-DF-HJ-NP-TV-XZ][b-df-hj-np-tv-xz]{1,3})(?=$|[\s\-\/)])/g,(m,a,b)=>a+b.toUpperCase())}   // plattformkoder uten vokal: «Valhall PH», «Ekofisk QP»
 /* «VOLVE» -> «Volvefeltet», «IVAR AASEN» -> «Ivar Aasen-feltet» */
 function fieldWord(f){const t=titleCase(f);return /[\s\d]/.test(t)?t+"-feltet":t+"feltet"}
 
