@@ -78,6 +78,12 @@ function setFacilities(list,status,stamp){
   D.idf=C.buildIdf(D.facilities.map(f=>f.name));
   D.status=status;D.stamp=stamp||null;renderSource();
 }
+/* Flyttbare innretninger må ha data hos Sodir (brønner) eller stå i flotellregisteret. Ellers kan vi ikke følge dem, og de tas ikke med som mulige mål. */
+function flyable(f){
+  if(!C.isFlyable(f))return false;
+  if(!f.moveable||!D.drillIds)return true;
+  return D.drillIds.has(f.id)||FLOT.has(C.normName(f.name));
+}
 function namesOf(f){return [f.name,...(D.aliases.get(f.id)||[])]}
 /* Tidligere navn: Sodir registrerer navnet riggen hadde da brønnen ble boret. Henter alle forskjellige navn i ett kall. */
 async function loadAliases(force){
@@ -89,6 +95,7 @@ async function loadAliases(force){
       list=feats.map(f=>f.attributes||{}).filter(a=>a.wlbDrillingFacility&&a.fclNpdidFacilityDrilling!=null).map(a=>[String(a.fclNpdidFacilityDrilling),C.clean(a.wlbDrillingFacility)]);
       if(list.length)store.set("sodir:alias",{ts:Date.now(),list});
     }
+    D.drillIds=new Set((list||[]).map(r=>r[0]));
     const m=new Map();
     for(const [id,name] of list||[]){
       const f=D.facById.get(id);if(!f||C.normName(f.name)===C.normName(name))continue;
@@ -251,7 +258,7 @@ function candidates(place,limit=6){
   const q=[place.nameHint,place.label,place.raw].filter(Boolean);
   const res=[];
   for(const f of D.facilities){
-    if(!C.isFlyable(f))continue;   // ingen helidekk å lande på: kan aldri ha vært et reisemål
+    if(!flyable(f))continue;   // ingen helidekk å lande på: kan aldri ha vært et reisemål
     let sc=0,via="";
     for(const nm of namesOf(f)){
       let s2=0;for(const s of q)s2=Math.max(s2,C.nameScore(s,nm),C.idfScore(s,nm,D.idf));
@@ -362,7 +369,7 @@ async function loadSharedCodes(){
 /* «SKARV» i kodelisten skal treffe «SKARV FPSO» hos Sodir. Faste og i drift foretrekkes. */
 function looseName(navn){
   const n=C.normName(navn||"");if(!n)return null;
-  const hits=D.facilities.filter(f=>C.isFlyable(f)).filter(f=>{const m=C.normName(f.name);return m.startsWith(n+" ")||m.endsWith(" "+n)});
+  const hits=D.facilities.filter(f=>flyable(f)).filter(f=>{const m=C.normName(f.name);return m.startsWith(n+" ")||m.endsWith(" "+n)});
   hits.sort((a,b)=>(a.moveable-b.moveable)||((b.phase==="IN SERVICE")-(a.phase==="IN SERVICE"))||a.name.length-b.name.length);
   return hits[0]||null;
 }
@@ -374,7 +381,7 @@ function facilityByCodeName(navn,sodirId){
   let f=D.facilities.find(x=>C.normName(x.name)===n);if(f)return f;
   for(const [id,names] of D.aliases||[])if(names.some(a=>C.normName(a)===n)&&D.facById.get(id))return D.facById.get(id);
   f=looseName(n);if(f)return f;
-  const suf=D.facilities.filter(x=>C.isFlyable(x)).filter(x=>{const m=C.normName(x.name);return m.length>=5&&n.endsWith(" "+m)});
+  const suf=D.facilities.filter(x=>flyable(x)).filter(x=>{const m=C.normName(x.name);return m.length>=5&&n.endsWith(" "+m)});
   suf.sort((a,b)=>(a.moveable-b.moveable)||((b.phase==="IN SERVICE")-(a.phase==="IN SERVICE"))||b.name.length-a.name.length);
   if(suf[0])return suf[0];
   const w=n.split(" ");return w.length>1?looseName(w.slice(0,-1).join(" ")):null;
