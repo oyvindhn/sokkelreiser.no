@@ -215,6 +215,13 @@ dialog::backdrop{background:rgba(10,20,28,.45)}
 .preview th,.preview td{padding:4px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
 .preview th{position:sticky;top:0;background:var(--panel-2);font-weight:650}
 .err{color:var(--bad);font-size:12.5px}
+dialog.dlg-card{width:min(520px,calc(100vw - 24px))}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.card-head .input{width:auto;min-width:170px}
+.card-prev{border-radius:12px;overflow:hidden;background:#0b1a24;aspect-ratio:4/5;max-height:62vh;display:grid;place-items:center}
+.card-prev img{display:block;width:100%;height:100%;object-fit:contain}
+.fun-card{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:4px;height:40px;border-radius:9px;border:1px dashed color-mix(in srgb,var(--accent) 55%,transparent);background:var(--accent-soft);color:var(--ink);font-weight:650;font-size:13px;cursor:pointer}
+.fun-card:hover{border-style:solid}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:50;background:var(--ink);color:var(--panel);padding:9px 14px;border-radius:9px;font-size:13px;box-shadow:var(--shadow);max-width:calc(100vw - 32px)}
 .menu{position:absolute;z-index:30;right:0;top:calc(100% + 6px);min-width:220px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px;display:flex;flex-direction:column}
 .menu button{border:0;background:none;text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer;font-size:13px}
