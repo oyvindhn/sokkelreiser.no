@@ -910,6 +910,7 @@ function funHtml(y){
     </div>
     <div class="fun-row">${track}<div class="fun-cap"><b>${nf(moon*100,moon<.1?2:1)} %</b> av veien til månen<small>${nf(MOON_KM-f.km)} km igjen</small></div></div>
     <div class="fun-row">${ring}<div class="fun-cap"><b>${nf(eq,1)} ganger</b> rundt ekvator<small>${laps?`${laps} hele runder`:"ikke en hel runde ennå"}</small></div></div>
+    <button type="button" class="fun-card" data-act="card"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.5" y="1.5" width="11" height="13" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M5 10.5l2-2 1.5 1.5L11 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>${y?`Lag «Mitt år offshore ${y}»`:"Lag «Min offshorekarriere»"}</button>
   </div>`;
 }
 function renderStays(){
@@ -1401,6 +1402,144 @@ function closeMDetail(){
   if(row){const v=$("view-stays");v.scrollTop=Math.max(0,row.offsetTop-v.offsetTop-v.clientHeight/4);row.classList.add("sel");setTimeout(()=>row.classList.remove("sel"),900)}
 }
 
+/* ================= delbart kort: «Mitt år offshore» / «Min offshorekarriere» ================= */
+/* Tegnes på canvas i nettleseren. Bare tall og navn på innretninger, aldri datoer for enkeltturer. */
+function cardStats(y){
+  const inP=s=>!y||+s.start.slice(0,4)===y;
+  const all=STAYS.filter(inP),trips=all.filter(s=>!s.turnback);
+  const st={y,days:0,trips:trips.length,turnbacks:all.length-trips.length,insts:new Set(),sites:new Map(),rigs:new Set(),wells:new Set(),byKey:new Map(),longest:null,north:null,deep:null,years:new Map()};
+  for(const s of trips){
+    const d=countDays(s);st.days+=d;st.insts.add(s.key);st.byKey.set(s.key,(st.byKey.get(s.key)||0)+d);
+    const yr=+s.start.slice(0,4);st.years.set(yr,(st.years.get(yr)||0)+d);
+    if(!st.longest||s.days>st.longest.days)st.longest={days:s.days,name:labelOf(s.key)};
+    for(const g of s.segs){if(!g.site)continue;const t=g.site;st.sites.set(t.id,t);
+      if(t.kind==="mobile"){st.rigs.add(t.facilityId);for(const w of (g.visit?g.visit.wells:[]))st.wells.add(w.name)}
+      const nm=t.kind==="fixed"||t.kind==="manual"?t.name:labelOf(s.key);
+      if(!st.north||t.lat>st.north.lat)st.north={lat:t.lat,name:nm};
+      if(t.depth!=null&&(!st.deep||t.depth>st.deep.depth))st.deep={depth:t.depth,name:nm};
+    }
+  }
+  const top=[...st.byKey.entries()].sort((a,b)=>b[1]-a[1])[0];st.top=top?{name:labelOf(top[0]),days:top[1]}:null;
+  st.flight=flightStats(y||null);
+  const ys=STAYS.filter(s=>!s.turnback).map(s=>+s.start.slice(0,4));st.first=Math.min(...ys);st.last=Math.max(...ys);
+  // ruter og punkter for kartet
+  st.routes=[];const seen=new Set();
+  for(const l of S.legs){if(l.cancelled||!l.date||!l.from||!l.to||(y&&+l.date.slice(0,4)!==y))continue;
+    const a=siteAt(C.placeKey(l.from),l.date),b=siteAt(C.placeKey(l.to),l.date);if(!a||!b||a.id===b.id)continue;
+    const k=[a.id,b.id].sort().join("|");if(!seen.has(k)){seen.add(k);st.routes.push([a,b])}}
+  return st;
+}
+const CARD_COL={bg:"#0a1822",sea:"#0e2331",land:"#1b2b2b",coast:"#2f4544",grid:"rgba(140,190,220,.07)",ink:"#eef3f4",muted:"#8ea3ab",faint:"#5b707a",accent:"#ff7a3d",accent2:"#ffb38a",line:"rgba(238,243,244,.12)"};
+function cardFont(w,size,fam="body"){return `${w} ${size}px ${fam==="disp"?'"Archivo","Arial Narrow",system-ui,sans-serif':fam==="mono"?'"IBM Plex Mono",ui-monospace,monospace':'"Archivo",system-ui,sans-serif'}`}
+function drawCardMap(ctx,st,x,y,w,hgt){
+  const K=CARD_COL;ctx.save();ctx.beginPath();ctx.roundRect(x,y,w,hgt,28);ctx.clip();ctx.fillStyle=K.sea;ctx.fillRect(x,y,w,hgt);
+  const pts=[];for(const t of st.sites.values())pts.push([t.lat,t.lon]);for(const [a,b] of st.routes){pts.push([a.lat,a.lon],[b.lat,b.lon])}
+  if(!pts.length)pts.push([56,2],[66,14]);
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;for(const [la,lo] of pts){const X=wx(lo),Y=wy(la);x0=Math.min(x0,X);x1=Math.max(x1,X);y0=Math.min(y0,Y);y1=Math.max(y1,Y)}
+  const minSpan=1.6;if(x1-x0<minSpan){const c=(x0+x1)/2;x0=c-minSpan/2;x1=c+minSpan/2}if(y1-y0<minSpan*.8){const c=(y0+y1)/2;y0=c-minSpan*.4;y1=c+minSpan*.4}
+  const pad=70,s=Math.min((w-pad*2)/(x1-x0),(hgt-pad*2)/(y1-y0)),cx=(x0+x1)/2,cy=(y0+y1)/2;
+  const P=(la,lo)=>[x+w/2+(wx(lo)-cx)*s,y+hgt/2+(wy(la)-cy)*s];
+  // land: grovt kart utenfor Norden, detaljert innenfor (samme som hovedkartet)
+  ctx.save();ctx.translate(x+w/2-cx*s,y+hgt/2-cy*s);ctx.scale(s,s);
+  const rx=wx(LAND_RECT.w),ry=wy(LAND_RECT.n),rw=wx(LAND_RECT.e)-rx,rh=wy(LAND_RECT.s)-ry;
+  ctx.save();const out=new Path2D();out.rect(-10,-10,276,276);out.rect(rx,ry,rw,rh);ctx.clip(out,"evenodd");ctx.fillStyle=K.land;ctx.fill(chart.pLand);ctx.restore();
+  ctx.save();ctx.beginPath();ctx.rect(rx,ry,rw,rh);ctx.clip();ctx.fillStyle=K.land;ctx.fill(chart.pDetail);ctx.strokeStyle=K.coast;ctx.lineWidth=1.2/s;ctx.stroke(chart.pDetail);ctx.restore();
+  ctx.restore();
+  // breddegrader
+  ctx.strokeStyle=K.grid;ctx.lineWidth=1;ctx.beginPath();for(let la=50;la<=80;la+=2){const [,yy]=P(la,0);ctx.moveTo(x,yy);ctx.lineTo(x+w,yy)}ctx.stroke();
+  // flyruter
+  ctx.lineCap="round";
+  for(const [a,b] of st.routes){let [p1,p2]=[P(a.lat,a.lon),P(b.lat,b.lon)];if(p1[0]>p2[0])[p1,p2]=[p2,p1];const L=Math.hypot(p2[0]-p1[0],p2[1]-p1[1]);if(L<3)continue;
+    const k=Math.min(.18,60/L+.08),mx=(p1[0]+p2[0])/2-(p2[1]-p1[1])*k,my=(p1[1]+p2[1])/2+(p2[0]-p1[0])*k;
+    ctx.beginPath();ctx.moveTo(...p1);ctx.quadraticCurveTo(mx,my,...p2);ctx.strokeStyle="rgba(255,122,61,.55)";ctx.lineWidth=2.6;ctx.stroke()}
+  // heliporter
+  const ports=new Map();for(const [a,b] of st.routes)for(const t of [a,b])if(t.kind==="port")ports.set(t.id,t);
+  for(const t of ports.values()){const [px,py]=P(t.lat,t.lon);ctx.fillStyle=K.ink;ctx.fillRect(px-7,py-7,14,14);ctx.font=cardFont(500,22,"mono");ctx.fillStyle=K.muted;ctx.textBaseline="middle";ctx.fillText(t.name,px+14,py)}
+  // installasjoner: størrelse etter døgn
+  const dayBy=new Map();for(const s of STAYS)if(!s.turnback&&(!st.y||+s.start.slice(0,4)===st.y))for(const g of s.segs)if(g.site)dayBy.set(g.site.id,(dayBy.get(g.site.id)||0)+Math.max(1,C.diffDays(g.start,g.end)));
+  const maxD=Math.max(1,...dayBy.values());
+  for(const t of [...st.sites.values()].sort((a,b)=>(dayBy.get(a.id)||0)-(dayBy.get(b.id)||0))){
+    const [px,py]=P(t.lat,t.lon),r=9+15*Math.sqrt((dayBy.get(t.id)||1)/maxD);
+    const g=ctx.createRadialGradient(px,py,0,px,py,r*2.6);g.addColorStop(0,"rgba(255,122,61,.38)");g.addColorStop(1,"rgba(255,122,61,0)");ctx.fillStyle=g;ctx.beginPath();ctx.arc(px,py,r*2.6,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();if(t.kind==="fixed"){const q=r*1.15;ctx.moveTo(px,py-q);ctx.lineTo(px+q*.95,py+q*.7);ctx.lineTo(px-q*.95,py+q*.7);ctx.closePath()}else ctx.arc(px,py,r*.8,0,Math.PI*2);
+    ctx.fillStyle=K.accent;ctx.fill();ctx.lineWidth=3;ctx.strokeStyle=K.bg;ctx.stroke();
+  }
+  ctx.restore();
+  ctx.strokeStyle=K.line;ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(x+1,y+1,w-2,hgt-2,28);ctx.stroke();
+}
+function fitText(ctx,text,max){let t=String(text);if(ctx.measureText(t).width<=max)return t;while(t.length>1&&ctx.measureText(t+"…").width>max)t=t.slice(0,-1);return t+"…"}
+function drawCard(st){
+  const W=1080,H=1350,c=document.createElement("canvas");c.width=W;c.height=H;const ctx=c.getContext("2d"),K=CARD_COL;
+  ctx.fillStyle=K.bg;ctx.fillRect(0,0,W,H);
+  const glow=ctx.createRadialGradient(W*.85,0,0,W*.85,0,W*.9);glow.addColorStop(0,"rgba(255,122,61,.16)");glow.addColorStop(1,"rgba(255,122,61,0)");ctx.fillStyle=glow;ctx.fillRect(0,0,W,H);
+  const M=72;ctx.textBaseline="alphabetic";
+  // topp
+  ctx.font=cardFont(800,30,"disp");if("letterSpacing" in ctx)ctx.letterSpacing="4px";ctx.fillStyle=K.ink;ctx.fillText("SOKKEL",M,100);const bw=ctx.measureText("SOKKEL").width;ctx.fillStyle=K.accent;ctx.fillText("REISER",M+bw,100);
+  const career=!st.y,title=career?"Min offshorekarriere":"Mitt år offshore",period=career?(st.first===st.last?String(st.first):`${st.first}–${st.last}`):String(st.y);
+  ctx.font=cardFont(600,26);if("letterSpacing" in ctx)ctx.letterSpacing="3px";ctx.fillStyle=K.muted;ctx.textAlign="right";ctx.fillText(title.toUpperCase(),W-M,100);ctx.textAlign="left";if("letterSpacing" in ctx)ctx.letterSpacing="0px";
+  // stort tall
+  ctx.fillStyle=K.ink;ctx.font=cardFont(800,190,"disp");ctx.fillText(nf(st.days),M-6,300);const dw=ctx.measureText(nf(st.days)).width;
+  ctx.font=cardFont(600,40);ctx.fillStyle=K.accent;ctx.fillText("døgn",M+dw+18,240);ctx.fillStyle=K.ink;ctx.fillText("offshore",M+dw+18,290);
+  ctx.font=cardFont(700,40,"disp");ctx.fillStyle=K.accent2;ctx.textAlign="right";ctx.fillText(period,W-M,290);ctx.textAlign="left";
+  ctx.font=cardFont(500,28);ctx.fillStyle=K.muted;
+  const yrs=st.days/365.25,sub=career?`${st.trips} turer · ${st.insts.size} innretninger · ${yrs>=1?nf(yrs,1)+" år av livet på sokkelen":"≈ "+nf(st.days/7,0)+" uker på sokkelen"}`:`${st.trips} turer · ${st.insts.size} innretninger · ${nf(st.days/365.25*100,0)} % av året`;
+  ctx.fillText(fitText(ctx,sub,W-2*M),M,350);
+  // kart
+  const bars=career&&st.last>st.first,mapH=bars?400:480;
+  drawCardMap(ctx,st,M,390,W-2*M,mapH);
+  // fliser
+  const f=st.flight,tiles=[];
+  tiles.push([nf(f.flights),"helikopterturer"]);
+  if(f.km)tiles.push([nf(f.km),"km i luften"]);
+  if(f.hours>=1)tiles.push([nf(f.hours,f.hours<100?1:0),"timer i helikopter"]);
+  if(st.longest)tiles.push([st.longest.days+" døgn","lengste opphold",st.longest.name]);
+  if(st.top&&st.insts.size>1)tiles.push([st.top.days+" døgn","mest tid på",st.top.name]);
+  if(st.north)tiles.push([nf(st.north.lat,1).replace(",",",")+"°N","lengst nord",st.north.name]);
+  if(st.wells.size)tiles.push([nf(st.wells.size),st.wells.size===1?"brønn boret mens du var der":"brønner boret mens du var der"]);
+  if(st.deep&&tiles.length<6)tiles.push([st.deep.depth+" m","dypeste havdyp",st.deep.name]);
+  if(st.turnbacks&&tiles.length<6)tiles.push([st.turnbacks+"×","helikopteret snudde","vær eller teknisk"]);
+  if(!career&&tiles.length<6){const cur=new Date().getFullYear(),len=st.y===cur?Math.round((Date.now()-Date.UTC(cur,0,1))/864e5):(st.y%4===0?366:365);tiles.push([nf(Math.max(0,len-st.days)),"døgn hjemme",st.y===cur?"så langt i år":""])}
+  if(tiles.length<6&&f.km)tiles.push([nf(f.km/MOON_KM*100,f.km/MOON_KM<.1?2:1)+" %","av veien til månen"]);
+  const T=tiles.slice(0,6),cols=3,tw=(W-2*M-2*24)/cols,th=bars?132:150,ty0=390+mapH+(bars?28:40);
+  T.forEach(([v,l,sub2],i)=>{const tx=M+(i%cols)*(tw+24),ty=ty0+Math.floor(i/cols)*(th+18);
+    ctx.fillStyle="rgba(238,243,244,.05)";ctx.beginPath();ctx.roundRect(tx,ty,tw,th,20);ctx.fill();
+    const o=bars?-8:0;
+    ctx.fillStyle=K.ink;ctx.font=cardFont(750,v.length>8?40:50,"disp");ctx.fillText(fitText(ctx,v,tw-40),tx+22,ty+64+o);
+    ctx.fillStyle=K.muted;ctx.font=cardFont(500,22);ctx.fillText(fitText(ctx,l,tw-40),tx+22,ty+98+o);
+    if(sub2){ctx.fillStyle=K.accent2;ctx.font=cardFont(600,22);ctx.fillText(fitText(ctx,sub2,tw-40),tx+22,ty+126+o)}});
+  // år for år (karriere)
+  const fy=ty0+Math.ceil(T.length/cols)*(th+18)+14;
+  if(bars){
+    const ys=[];for(let yy=st.first;yy<=st.last;yy++)ys.push(yy);const mx=Math.max(1,...ys.map(yy=>st.years.get(yy)||0));
+    const bh=H-92-fy-50,gw=(W-2*M)/ys.length,bw2=Math.min(46,gw*.62);
+    ys.forEach((yy,i)=>{const v=st.years.get(yy)||0,hh=Math.max(v?4:0,bh*v/mx),bx=M+i*gw+(gw-bw2)/2;ctx.fillStyle=v===mx?K.accent:"rgba(238,243,244,.22)";ctx.beginPath();ctx.roundRect(bx,fy+bh-hh,bw2,hh,4);ctx.fill();
+      if(ys.length<=16||i%2===0){ctx.fillStyle=K.faint;ctx.font=cardFont(500,19,"mono");ctx.textAlign="center";ctx.fillText("’"+String(yy).slice(2),bx+bw2/2,fy+bh+28);ctx.textAlign="left"}});
+  }
+  // bunn
+  ctx.fillStyle=K.line;ctx.fillRect(M,H-92,W-2*M,2);
+  ctx.font=cardFont(600,24);ctx.fillStyle=K.muted;ctx.fillText("sokkelreiser.no",M,H-48);
+  ctx.textAlign="right";ctx.fillStyle=K.faint;ctx.font=cardFont(500,21);ctx.fillText("Posisjoner fra Sodir · flytid og km anslått",W-M,H-48);ctx.textAlign="left";
+  return c;
+}
+let CARD_BLOB=null;
+async function renderCard(y){
+  if(document.fonts&&document.fonts.ready)await document.fonts.ready;
+  const st=cardStats(y);const c=drawCard(st);
+  const blob=await new Promise(r=>c.toBlob(r,"image/png"));CARD_BLOB={blob,name:y?`mitt-aar-offshore-${y}.png`:"min-offshorekarriere.png"};
+  const img=$("cardImg");if(img.dataset.url)URL.revokeObjectURL(img.dataset.url);img.dataset.url=URL.createObjectURL(blob);img.src=img.dataset.url;
+  const file=new File([blob],CARD_BLOB.name,{type:"image/png"});
+  const can=!!(navigator.canShare&&navigator.canShare({files:[file]}));$("cardShare").hidden=!can;$("cardSave").classList.toggle("accent",!can);$("cardSave").classList.toggle("ghost",can);
+}
+function openCard(y){
+  if(!STAYS.some(s=>!s.turnback)){toast("Importer reiseloggen først.");return}
+  const ys=[...new Set(STAYS.filter(s=>!s.turnback).map(s=>+s.start.slice(0,4)))].sort((a,b)=>b-a);
+  const sel=$("cardYear");sel.innerHTML=`<option value="">Hele karrieren</option>`+ys.map(v=>`<option value="${v}">${v}</option>`).join("");sel.value=y?String(y):"";
+  sel.onchange=()=>renderCard(sel.value?+sel.value:null);
+  $("dlgCard").showModal();renderCard(y||null);
+}
+$("cardSave").addEventListener("click",()=>{if(CARD_BLOB)download(CARD_BLOB.name,CARD_BLOB.blob,"image/png")});
+$("cardShare").addEventListener("click",async()=>{if(!CARD_BLOB)return;try{await navigator.share({files:[new File([CARD_BLOB.blob],CARD_BLOB.name,{type:"image/png"})],title:"Sokkelreiser"})}catch(_){}});
+
 /* ================= events ================= */
 document.addEventListener("click",async e=>{
   const b=e.target.closest("[data-act]");
@@ -1454,6 +1593,7 @@ document.addEventListener("click",async e=>{
   else if(act==="setinst"){const p=S.places[b.dataset.key];p.kind="installation";p.kindEdited=true;if(!p.labelEdited)p.label=p.nameHint||p.raw;persist();recompute()}
   else if(act==="pickplace")startPick("place",b.dataset.key,"Klikk der installasjonen ligger");
   else if(act==="mclose")closeMDetail();
+  else if(act==="card")openCard(S.ui.year);
   else if(act==="mgo")selectStay(b.dataset.id,b.dataset.dir);
 });
 document.addEventListener("change",e=>{

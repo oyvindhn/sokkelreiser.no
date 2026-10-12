@@ -70,5 +70,11 @@
 </div>
 
 <dialog id="dlgAdd"><form class="dlg" method="dialog" id="addForm"></form></dialog>
+<dialog id="dlgCard" class="dlg-card"><form class="dlg" method="dialog" id="cardForm">
+  <div class="card-head"><h2>Del kortet</h2><select class="input" id="cardYear" aria-label="Periode"></select></div>
+  <div class="card-prev"><img id="cardImg" alt="Oppsummering av tiden offshore"></div>
+  <p class="small muted" style="margin:0">Kortet lages her i nettleseren. Ingenting sendes noe sted før du selv deler det.</p>
+  <div class="foot"><button class="btn ghost" value="cancel" type="submit">Lukk</button><button class="btn ghost" type="button" id="cardSave">Last ned bilde</button><button class="btn accent" type="button" id="cardShare" hidden>Del …</button></div>
+</form></dialog>
 <dialog id="dlgConfirm"><form class="dlg" method="dialog" id="confirmForm"></form></dialog>
 <div class="toast" id="toast" hidden></div>
