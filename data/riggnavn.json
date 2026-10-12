@@ -118,6 +118,71 @@
     "kilde": "Odfjell Drilling: navnebyttet skjer formelt i 2026 (dag ikke oppgitt)",
     "url": "https://www.inderes.fi/sv/releases/odl-successful-completion-of-acquisition-of-deepsea-bollsta-and-refinancing"
    }
+  ],
+  [
+   {
+    "navn": "Maersk Intrepid",
+    "til": "2022-10-02"
+   },
+   {
+    "navn": "Noble Intrepid",
+    "fra": "2022-10-03",
+    "presisjon": "ca",
+    "kilde": "Havtil: Noble Drilling overtok Maersk Drillings innretninger i 2022. Fusjonen ble fullført 3.10.2022",
+    "url": "https://www.havtil.no/en/supervision/acknowledgements-of-compliance/granted/noble-intrepid-noble-drilling-norge-as/"
+   }
+  ],
+  [
+   {
+    "navn": "West Mira",
+    "til": "2022-03-09"
+   },
+   {
+    "navn": "Deepsea Mira",
+    "fra": "2022-03-10",
+    "presisjon": "ca",
+    "kilde": "Northern Ocean 10.3.2022: riggene får navnene Deepsea Mira og Deepsea Bollsta (ikrafttredelse ikke oppgitt)",
+    "url": "https://mfn.se/ob/a/northern-ocean/nol-the-northern-ocean-fleet-is-renamed-a30d4bf2"
+   }
+  ],
+  [
+   {
+    "navn": "West Bollsta",
+    "til": "2022-03-09"
+   },
+   {
+    "navn": "Deepsea Bollsta",
+    "fra": "2022-03-10",
+    "presisjon": "ca",
+    "kilde": "Northern Ocean 10.3.2022: riggene får navnene Deepsea Mira og Deepsea Bollsta (ikrafttredelse ikke oppgitt)",
+    "url": "https://mfn.se/ob/a/northern-ocean/nol-the-northern-ocean-fleet-is-renamed-a30d4bf2"
+   }
+  ],
+  [
+   {
+    "navn": "Aker Barents",
+    "til": "2011-09-30"
+   },
+   {
+    "navn": "Transocean Barents",
+    "fra": "2011-10-01",
+    "presisjon": "år",
+    "kilde": "Transocean overtok Aker Drilling i oktober 2011 (Wikipedia). Selve navnebyttet er ikke datert",
+    "url": "https://en.wikipedia.org/wiki/Aker_Drilling"
+   }
+  ],
+  [
+   {
+    "navn": "Aker Spitsbergen",
+    "til": "2011-09-30"
+   },
+   {
+    "navn": "Transocean Spitsbergen",
+    "fra": "2011-10-01",
+    "presisjon": "år",
+    "kilde": "Transocean overtok Aker Drilling i oktober 2011 (Wikipedia). Selve navnebyttet er ikke datert",
+    "url": "https://en.wikipedia.org/wiki/Aker_Drilling"
+   }
   ]
  ]
 }
