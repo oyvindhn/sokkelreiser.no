@@ -82,7 +82,9 @@ function setFacilities(list,status,stamp){
 function flyable(f){
   if(!C.isFlyable(f))return false;
   if(!f.moveable||!D.drillIds)return true;
-  return D.drillIds.has(f.id)||FLOT.has(C.normName(f.name));
+  if(D.drillIds.has(f.id)||FLOT.has(C.normName(f.name)))return true;
+  // boligrigger (flotell): har helidekk, men står aldri i brønnregisteret. Fartøy uten data tas ikke med.
+  return /SEMISUB|JACK/i.test(f.kind||"")&&/ACCOMM|FLOTEL|QUARTER/i.test(f.functions||"");
 }
 function namesOf(f){return [f.name,...(D.aliases.get(f.id)||[])]}
 /* Tidligere navn: Sodir registrerer navnet riggen hadde da brønnen ble boret. Henter alle forskjellige navn i ett kall. */
