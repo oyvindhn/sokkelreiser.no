@@ -541,12 +541,14 @@ class Chart{
       if(!text||(m.dim&&!m.sel&&m.id!==this.hoverId))continue;
       if(!m.port&&!isFull&&this.z<4.2)continue;
       if(isFull&&this.z<5.2&&!m.sel&&m.id!==this.hoverId)continue;
-      ctx.font=m.port?portFont:isFull?instFont:tagFont;const [x,y]=this.toScreen(m.lat,m.lon);const tw=ctx.measureText(text).width;const bx=x+m.r+5,by=y-8,bw=tw+6,bh=16;
+      ctx.font=m.port?portFont:isFull?instFont:tagFont;const [x,y]=this.toScreen(m.lat,m.lon);
+      const lines=isFull&&m.lines&&m.lines.length?m.lines:[text];
+      const tw=Math.max(...lines.map(l=>ctx.measureText(l).width)),LH=15,bh=lines.length*LH+2;const bx=x+m.r+5,by=y-bh/2,bw=tw+8;
       const hot=m.id===this.hoverId;
       if(!hot&&boxes.some(b=>bx<b.x+b.w&&bx+bw>b.x&&by<b.y+b.h&&by+bh>b.y))continue;boxes.push({x:bx,y:by,w:bw,h:bh});
-      ctx.fillStyle=col.halo;ctx.fillRect(bx-1,by+1,bw,bh-2);
-      if(hot){ctx.strokeStyle=col.accent;ctx.lineWidth=1;ctx.strokeRect(bx-.5,by+1.5,bw-1,bh-3)}
-      ctx.fillStyle=m.dim?col.muted:col.ink;ctx.fillText(text,bx+2,y);
+      ctx.fillStyle=col.halo;ctx.fillRect(bx-1,by,bw,bh);
+      if(hot){ctx.strokeStyle=col.accent;ctx.lineWidth=1;ctx.strokeRect(bx-.5,by+.5,bw-1,bh-1)}
+      lines.forEach((l,i)=>{ctx.fillStyle=m.dim?col.muted:(i>0&&lines.length>1?col.muted:col.ink);if(i===1&&lines.length>2)ctx.fillStyle=col.ink;ctx.fillText(l,bx+3,by+1+LH*i+LH/2)});
     }
     ctx.restore();
   }
@@ -642,9 +644,11 @@ function stayMapItems(){
       for(const s of [a,b])if(s.kind==="port"){const pt=ports.get(s.id)||{site:s,n:0,dim:true};pt.n++;if(!dim)pt.dim=false;ports.set(s.id,pt)}
     }
   }
-  const mapLabel=a=>{const rigs=[...a.rigs.values()];if(a.site.kind==="fixed"){const own=[a.site.name,...rigs.filter(r=>C.normName(r)!==C.normName(a.site.name))];return own.join(" / ")}
-    return [rigs.join(" / "),a.site.name,a.site.operatorShort].filter(Boolean).join(" • ")};
-  const markers=[...agg.values()].map(a=>({id:a.site.id,lat:a.site.lat,lon:a.site.lon,r:PIN,conf:a.conf,sel:a.sel,dim:a.dim,label:mapLabel(a),short:[...a.codes.values()].join(" / "),days:a.days,data:a}));
+  // utvidet etikett i linjer: «Maersk Guardian» / «7/4-3 Brynhild» / «Lundin». Faste installasjoner: navnet (og boligrigg).
+  const mapLines=a=>{const rigs=[...a.rigs.values()];
+    if(a.site.kind==="fixed")return [[a.site.name,...rigs.filter(r=>C.normName(r)!==C.normName(a.site.name))].join(" / ")];
+    return [rigs.join(" / "),a.site.name,a.site.operatorShort].filter(Boolean)};
+  const markers=[...agg.values()].map(a=>({id:a.site.id,lat:a.site.lat,lon:a.site.lon,r:PIN,conf:a.conf,sel:a.sel,dim:a.dim,lines:mapLines(a),label:mapLines(a).join(" • "),short:[...a.codes.values()].join(" / "),days:a.days,data:a}));
   for(const pt of ports.values())markers.push({id:pt.site.id,lat:pt.site.lat,lon:pt.site.lon,r:4,port:true,dim:pt.dim,label:pt.site.name,data:{port:true,n:pt.n,site:pt.site}});
   return {markers,lines,routes:[...routes.values()]};
 }
@@ -1125,7 +1129,7 @@ chart.cb.hover=(m,p,geo)=>{
   else if(d.rig){const n=s.wells.length;body=`<span class="mono">${h(s.sub||s.well)}</span><br>${n} ${plural(n,"brønn","brønner")} · ${s.wells[0].entry.slice(0,4)}–${(s.wells[n-1].comp||s.wells[n-1].entry).slice(0,4)}`}
   else body=`${d.stays?d.stays.size:0} ${plural(d.stays?d.stays.size:0,"tur","turer")} · ${d.days||0} døgn${s.sub&&s.kind==="mobile"?`<br><span class="mono">${h(s.sub)}</span>`:""}`;
   tip.innerHTML=m.port?`<b>${h(m.label)}</b>${body}`:body;tip.hidden=false;
-  const W=chart.W;tip.style.left=Math.min(p[0],W-270)+"px";tip.style.top=p[1]+"px";
+  const W=chart.W;tip.style.left=Math.min(p[0],W-270)+"px";tip.style.top=(p[1]+(m.port?0:34))+"px";
 };
 chart.cb.click=(m,geo)=>{
   if(S.ui.pick){
