@@ -111,6 +111,38 @@ async function loadActivity(force){
     return true;
   }catch(e){console.warn("Sodir boreaktivitet",e);return false}
 }
+/* Prospektnavn fra Sodirs brønnhistorikk (tabell 5050, fritekst). Bare for brønner du faktisk har vært ved, ett kall, lagres i 14 dager. */
+async function loadProspects(sites){
+  const todo=new Map();   // npdid -> [site]
+  for(const s of sites){
+    if(s.prospect!==undefined)continue;   // allerede vurdert (navn eller null)
+    const ids=s.wells.slice(0,4).map(w=>w.npdid).filter(Boolean);
+    if(!ids.length){s.prospect=null;continue}
+    let found=null,missing=[];
+    for(const id of ids){const c=store.get("sodir:pros:"+id,null);if(c&&Date.now()-c.ts<CACHE_DAYS*864e5){if(c.name&&!found)found=c}else missing.push(id)}
+    if(found){s.prospect=found.name;s.prospectText=found.sentence;C.nameSite(s);continue}
+    if(!missing.length){s.prospect=null;continue}
+    for(const id of missing){if(!todo.has(id))todo.set(id,[]);todo.get(id).push(s)}
+    s.prospect=undefined;
+  }
+  if(!todo.size)return false;
+  let changed=false;
+  try{
+    const ids=[...todo.keys()];
+    for(let i=0;i<ids.length;i+=40){
+      const part=ids.slice(i,i+40);
+      const feats=await arcQuery(5050,{where:`wlbNpdidWellbore IN (${part.join(",")})`,outFields:"wlbNpdidWellbore,wlbHistory",returnGeometry:"false"});
+      const got=new Map();for(const f of feats){const a=f.attributes||{};got.set(String(a.wlbNpdidWellbore),C.prospectFromHistory(a.wlbHistory))}
+      for(const id of part){
+        const r=got.get(id)||null;
+        try{store.set("sodir:pros:"+id,{ts:Date.now(),name:r?r.name:"",sentence:r?r.sentence:""})}catch(_){}
+        for(const s of todo.get(id)){if(r&&!s.prospect){s.prospect=r.name;s.prospectText=r.sentence;C.nameSite(s);changed=true}}
+      }
+    }
+  }catch(e){console.warn("Sodir brønnhistorikk",e);for(const l of todo.values())for(const s of l)if(s.prospect===undefined)s.prospect=null;return changed}
+  for(const l of todo.values())for(const s of l)if(s.prospect===undefined)s.prospect=null;
+  return changed;
+}
 async function loadFacilities(force){
   const cached=store.get("sodir:fac",null);
   if(!force&&cached&&Date.now()-cached.ts<CACHE_DAYS*864e5){setFacilities(cached.list,"cache",cached.ts);return true}
@@ -121,7 +153,7 @@ async function loadFacilities(force){
     if(!list.length)throw new Error("Tomt svar");
     store.set("sodir:fac",{ts:Date.now(),list});
     setFacilities(list,"live",Date.now());
-    if(force){for(const k of store.keys())if(k.startsWith("sodir:wb:")||k==="sodir:alias")store.del(k);D.wellbores.clear();D.timelines.clear()}
+    if(force){for(const k of store.keys())if(k.startsWith("sodir:wb")||k.startsWith("sodir:pros:")||k==="sodir:alias")store.del(k);D.wellbores.clear();D.timelines.clear()}
     return true;
   }catch(e){
     console.warn("Sodir facilities",e);
@@ -133,14 +165,14 @@ async function loadFacilities(force){
 async function getWellbores(facId){
   if(D.wellbores.has(facId))return D.wellbores.get(facId);
   if(D.fileWellbores){const l=D.fileWellbores.get(facId)||[];D.wellbores.set(facId,l);return l}
-  const cached=store.get("sodir:wb:"+facId,null);
+  const cached=store.get("sodir:wb2:"+facId,null);
   if(cached&&Date.now()-cached.ts<CACHE_DAYS*864e5){D.wellbores.set(facId,cached.list);return cached.list}
   if(D.pending.has(facId))return D.pending.get(facId);
   const fac=D.facById.get(facId);
   const where=/^\d+$/.test(facId)?`fclNpdidFacilityDrilling=${facId}`:`wlbDrillingFacility='${(fac?fac.name:"").replace(/'/g,"''")}'`;
   const q=fields=>arcQuery(5000,{where,outFields:fields,returnGeometry:"true",orderByFields:"wlbEntryDate"});
   const pr=q("*").catch(()=>q(WB_FIELDS))
-    .then(feats=>{const list=feats.map(f=>C.normWellbore(f.attributes||{},f.geometry));store.set("sodir:wb:"+facId,{ts:Date.now(),list});D.wellbores.set(facId,list);return list})
+    .then(feats=>{const list=feats.map(f=>C.normWellbore(f.attributes||{},f.geometry));store.set("sodir:wb2:"+facId,{ts:Date.now(),list});D.wellbores.set(facId,list);return list})
     .catch(e=>{console.warn("Sodir wellbores",e);if(cached){D.wellbores.set(facId,cached.list);return cached.list}return null})
     .finally(()=>D.pending.delete(facId));
   D.pending.set(facId,pr);return pr;
@@ -388,6 +420,8 @@ async function recompute(){
     if(seq!==recomputeSeq)return;
     STAYS=stays.map(s=>({...s,segs:resolveStay(s)}));
     renderAll();
+    const sites=[];for(const s of STAYS)for(const g of s.segs)if(g.site&&g.site.wells&&!sites.includes(g.site))sites.push(g.site);
+    if(sites.length&&await loadProspects(sites)&&seq===recomputeSeq)renderAll();
   }
 }
 
@@ -734,6 +768,7 @@ function stayDetail(s){
         ${g.thenName&&C.normName(g.thenName)!==C.normName(st.facilityName||"")?`<dt>Het da</dt><dd>${h(C.titleCase(g.thenName))} <span class="muted">(nå ${h(C.titleCase(st.facilityName))})</span></dd>`:""}
         ${st.discovery?`<dt>Funn</dt><dd>${h(C.titleCase(st.discovery))}</dd>`:""}
         ${st.aliases&&st.aliases.length?`<dt>Alias hos Sodir</dt><dd>${st.aliases.map(x=>h(C.titleCase(x))).join(", ")}</dd>`:""}
+        ${st.prospect?`<dt>Prospekt</dt><dd>${h(C.titleCase(st.prospect))}${st.prospectText?`<div class="small muted">Fra Sodirs brønnhistorikk: «${h(st.prospectText)}»</div>`:""}</dd>`:""}
         ${st.licence?`<dt>Lisens</dt><dd>PL ${h(st.licence.replace(/^PL\s*/i,""))}${st.operator?` · ${h(st.operator)}`:""}</dd>`:""}
         ${st.kind==="mobile"?`<dt>Brønn</dt><dd class="mono">${h((g.visit?g.visit.wells:st.wells).map(w=>w.name).slice(0,6).join(", "))}${(g.visit?g.visit.wells:st.wells).length>6?" …":""}</dd>`:""}
         ${st.kind==="mobile"&&st.area?`<dt>Område</dt><dd>${h(C.titleCase(st.area))}</dd>`:""}

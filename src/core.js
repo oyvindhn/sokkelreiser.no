@@ -395,7 +395,7 @@ function normFacility(a,geom){
 }
 function normWellbore(a,geom){
   const pos=geoOf(a,geom);
-  return {name:clean(a.wlbWellboreName),well:clean(a.wlbWell),entry:parseDate(a.wlbEntryDate),comp:parseDate(a.wlbCompletionDate),
+  return {npdid:a.wlbNpdidWellbore!=null&&a.wlbNpdidWellbore!==""?String(a.wlbNpdidWellbore):"",name:clean(a.wlbWellboreName),well:clean(a.wlbWell),entry:parseDate(a.wlbEntryDate),comp:parseDate(a.wlbCompletionDate),
     field:clean(a.wlbField),discovery:clean(a.wlbDiscovery),purpose:clean(a.wlbPurpose),type:clean(a.wlbWellType),status:clean(a.wlbStatus),
     content:clean(a.wlbContent),depth:a.wlbWaterDepth!=null&&a.wlbWaterDepth!==""?+a.wlbWaterDepth:null,area:clean(a.wlbMainArea),url:clean(a.wlbFactPageUrl),
     licence:clean(a.wlbProductionLicence),operator:clean(a.wlbDrillingOperator),alias:clean(a.wlbAliasName),press:clean(a.wlbPressReleaseUrl),
@@ -418,6 +418,29 @@ function discoveryName(d){
   while(t.length>1&&(/^\d+\/\d+-[\w\/-]+$/.test(t[0])||/^(S|A|B|R|T|ST\d*|SR|AT\d*|[A-Z]\d?)$/.test(t[0])))t.shift();
   const n=t.join(" ");return /^\d+\/\d+-/.test(n)?"":n;
 }
+/* Prospektnavn fra Sodirs brønnhistorikk (fritekst). Bare svært tydelige formuleringer: «the Clapton prospect», «prospect named X», «Clapton-prospektet».
+   Returnerer {name,sentence} eller null. Gjetter aldri. */
+const NOT_NAME=/^(the|this|that|these|those|a|an|upper|lower|middle|late|early|central|northern|southern|eastern|western|north|south|east|west|main|deep|deeper|shallow|shallower|primary|secondary|same|other|first|second|third|drilled|new|old|jurassic|triassic|cretaceous|paleocene|eocene|permian|carboniferous|devonian|rotliegend|zechstein|chalk|sandstone|reservoir|exploration|wildcat|appraisal|oil|gas|licence|license|norwegian|north-sea)$/i;
+function prospectFromHistory(text){
+  const t=String(text||"").replace(/\s+/g," ");if(!t)return null;
+  const W="[A-ZÆØÅ][A-Za-zÆØÅæøå0-9'\\-]*";
+  const pats=[new RegExp("\\b[Tt]he ("+W+"(?: "+W+")?) prospect\\b"),new RegExp("\\bprospect(?:ed)? (?:named|called|known as) ("+W+"(?: "+W+")?)"),new RegExp("\\b("+W+")[- ]prospektet\\b"),new RegExp("\\bprospektet ("+W+")")];
+  for(const re of pats){
+    const m=re.exec(t);if(!m)continue;
+    const words=m[1].split(" ").filter(w=>!NOT_NAME.test(w));
+    if(!words.length||words.length!==m[1].split(" ").length)continue;   // «the Upper Jurassic prospect» -> ingen
+    const i=Math.max(0,m.index-60),sentence=t.slice(i,Math.min(t.length,m.index+m[0].length+60)).trim();
+    return {name:m[1],sentence:(i>0?"…":"")+sentence+"…"};
+  }
+  return null;
+}
+/* Navn på en lokasjon: «brønn prospekt/funn/felt», i den rekkefølgen datidens navn er mest presist. */
+function nameSite(s){
+  const dn=discoveryName(s.discovery);
+  s.place=titleCase(s.prospect||dn||s.field||"");
+  s.name=[s.well,s.place].filter(Boolean).join(" ");
+  return s.name;
+}
 /* «Lundin Norway AS» -> «Lundin», «Phillips Petroleum Company Norway» -> «Phillips» */
 function shortOperator(o){
   const drop=/^(as|asa|a\/s|ab|bv|nv|ltd|limited|inc|plc|norge|norway|company|petroleum|energy|oil|exploration|production|e&p|operating|operations|group|international)$/i;
@@ -438,9 +461,7 @@ function rigTimeline(facId,wellbores){
     // «8/5-1 Ogna»: brønnen og navnet på funnet (datidens navn), ellers feltet. Uten navn: bare brønnen.
     const pl=s.licence?"PL "+s.licence.replace(/^PL\s*/i,""):"";
     s.block=(/^(\d+\/\d+)/.exec(s.well)||[])[1]||"";
-    const dn=discoveryName(s.discovery);
-    s.place=titleCase(dn||s.field||"");
-    s.name=[s.well,s.place].filter(Boolean).join(" ");
+    nameSite(s);
     s.operatorShort=shortOperator(s.operator);
     // Alias og pressemelding vises som de står hos Sodir. De brukes ikke til å lage navn (kan være prospektnavn, men er ikke garantert).
     const norm=x=>normName(x||"");const seen=new Set([norm(s.well),norm(s.place),norm(s.field)]);
@@ -584,7 +605,7 @@ function toCSV(rows,delim=";"){
 
 const api={DAY,pad,isoFromDate,toDay,fromDay,addDays,diffDays,todayIso,parseDate,fmtDate,clean,normName,tokens,nameScore,parseCSV,readXlsx,
   FIELDS,findHeaderRow,guessColumns,analyseTables,buildLegs,placeKey,derivePlaces,buildStays,normFacility,normWellbore,rowsToObjects,
-  buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,nameAt,fieldWord,discoveryName,shortOperator,titleCase,toCSV,isSodirWellbore,isSodirFacility,
+  buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,nameAt,fieldWord,discoveryName,shortOperator,prospectFromHistory,nameSite,titleCase,toCSV,isSodirWellbore,isSodirFacility,
   activityByFacility,dateFit,neighbours,pickAuto,heliport,flightHints,flightFit};
 if(typeof module!=="undefined"&&module.exports)module.exports=api;else root.OK=api;
 })(typeof window!=="undefined"?window:globalThis);

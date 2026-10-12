@@ -243,3 +243,22 @@ test("alias og pressemelding hentes fra Sodir, men brukes ikke som navn", () => 
   assert.deepEqual(b.aliases, [], "brønnbetegnelser er ikke alias");
   assert.equal(b.press, "");
 });
+
+test("prospektnavn fra brønnhistorikk: bare tydelige formuleringer", () => {
+  const n = (t) => (C.prospectFromHistory(t) || {}).name || null;
+  assert.equal(n("Wildcat well 9/9-1 was drilled to test the Testby prospect in the Central Graben."), "Testby");
+  assert.equal(n("The prospect named Eksempel was tested."), "Eksempel");
+  assert.equal(n("Brønnen ble boret på Prøve-prospektet i Nordsjøen."), "Prøve");
+  assert.equal(n("The well tested the Ivar Test prospect."), "Ivar Test");
+  assert.equal(n("The well was drilled on the Upper Jurassic prospect."), null, "geologi er ikke et navn");
+  assert.equal(n("The main objective was to prove petroleum in the Brent Group."), null);
+  assert.equal(n(""), null);
+});
+
+test("lokasjonsnavn: prospekt fra historikken går foran funn og felt", () => {
+  const s = C.rigTimeline("5", [C.normWellbore({ wlbWellboreName: "9/9-1", wlbWell: "9/9-1", wlbEntryDate: Date.parse("2016-01-01"), wlbCompletionDate: Date.parse("2016-03-01"), wlbNsDecDeg: 59.8, wlbEwDecDeg: 2.6, wlbField: "TESTFELT", fclNpdidFacilityDrilling: 5, wlbNpdidWellbore: 123 })]).sites[0];
+  assert.equal(s.name, "9/9-1 Testfelt");
+  assert.equal(s.wells[0].npdid, "123");
+  s.prospect = "Testby"; C.nameSite(s);
+  assert.equal(s.name, "9/9-1 Testby");
+});
