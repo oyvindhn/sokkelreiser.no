@@ -15,7 +15,20 @@
    "navn": "NOBLE INTERCEPTOR"
   },
   "INS": {
-   "navn": "MÆRSK INSPIRER"
+   "navn": "INSPIRER",
+   "visning": "Yme Inspirer",
+   "perioder": [
+    {
+     "til": "2020-12-31",
+     "navn": "MÆRSK INSPIRER",
+     "visning": "Mærsk Inspirer"
+    },
+    {
+     "fra": "2021-01-01",
+     "navn": "INSPIRER",
+     "visning": "Yme Inspirer"
+    }
+   ]
   },
   "GOL": {
    "navn": "GOLIAT"
@@ -28,6 +41,16 @@
   },
   "SLB": {
    "navn": "SLEIPNER B"
+  },
+  "SLE": {
+   "navn": "SLEIPNER A"
+  },
+  "DRA": {
+   "navn": "DRAUPNER S",
+   "visning": "Draupner"
+  },
+  "HAVN": {
+   "navn": "HAVEN"
   }
  }
 }
