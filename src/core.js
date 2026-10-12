@@ -679,6 +679,66 @@ function pickAuto(cands,{min=.5,margin=.08,sameKm=5}={}){
   return null;
 }
 
+
+/* ---------- høytider og merker ---------- */
+/* Påskedag (gregoriansk, «anonym» algoritme). */
+function easterSunday(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;return y+"-"+pad(mo)+"-"+pad(da)}
+const HOLIDAYS=[
+  {id:"jul",name:"Julaften",days:y=>[y+"-12-24"]},
+  {id:"nyttar",name:"Nyttårsaften",days:y=>[y+"-12-31"]},
+  {id:"paske",name:"Påske",days:y=>{const e=easterSunday(y);return [-3,-2,-1,0,1].map(n=>addDays(e,n))}},
+  {id:"mai17",name:"17. mai",days:y=>[y+"-05-17"]},
+  {id:"sankthans",name:"Sankthansaften",days:y=>[y+"-06-23"]},
+];
+/* Offshore på en dag = kvelden tilbringes offshore: utreise den dagen teller, hjemreise den dagen teller ikke. */
+function offshoreOn(s,d){if(s.turnback)return false;const end=s.end||todayIso();return s.start<=d&&d<end}
+/* -> [{id,name,hits:[{year,date,stay}]}] */
+function holidaysOffshore(stays){
+  const out=HOLIDAYS.map(h=>({id:h.id,name:h.name,hits:[]}));
+  const ys=new Set();for(const s of stays){if(s.turnback)continue;for(let y=+s.start.slice(0,4);y<=+(s.end||todayIso()).slice(0,4);y++)ys.add(y)}
+  for(const y of [...ys].sort())HOLIDAYS.forEach((h,i)=>{const ds=h.days(y);for(const s of stays){const d=ds.find(d=>offshoreOn(s,d));if(d){out[i].hits.push({year:y,date:d,stay:s});break}}});
+  return out;
+}
+/* Havområde ut fra breddegrad (grovt, men riktig for norsk sokkel). */
+function seaOf(lat){return lat>=69.5?"barents":lat>=62?"norske":"nord"}
+/* Merker. stays: oppholdene med segs/site, legs: reisene, days(s): døgn som teller.
+   -> [{id,group,sym,label,desc,date|null,have,need}] Ulåste har date=null og evt. fremdrift (have/need). */
+function badges({stays,legs,days=s=>s.days}){
+  const st=stays.filter(s=>!s.turnback).slice().sort((a,b)=>a.start<b.start?-1:a.start>b.start?1:0);
+  const B=[];const add=(id,group,sym,label,desc,date,have,need)=>B.push({id,group,sym,label,desc,date:date||null,have:have??null,need:need??null});
+  // døgn offshore
+  let cum=0;const at={};for(const s of st){const b=cum;cum+=days(s);for(const t of [100,500,1000,2000])if(b<t&&cum>=t&&!at[t])at[t]=addDays(s.start,Math.min(t-b,s.days||0))}
+  for(const t of [100,500,1000,2000])add("d"+t,"døgn",t>=1000?(t/1000)+"k":String(t),`${t>=1000?(t/1000)+" 000":t} døgn`,`${t>=1000?(t/1000)+" 000":t} døgn offshore`,at[t],Math.min(cum,t),t);
+  // helikopterturer
+  const fl=legs.filter(l=>!l.cancelled&&l.date&&l.from&&l.to).map(l=>l.date).sort();
+  for(const t of [50,100,250,500])add("f"+t,"fly",String(t),`${t} flyturer`,`${t} helikopterturer`,fl[t-1],Math.min(fl.length,t),t);
+  // høytider
+  const hol=holidaysOffshore(stays);const sym={jul:"✶",nyttar:"✷",paske:"✿",mai17:"17/5",sankthans:"☼"};
+  for(const h of hol)add("h-"+h.id,"høytid",sym[h.id],`${h.name} offshore`,`Var offshore ${h.name==="Påske"?"i påsken":h.name==="17. mai"?"17. mai":h.name.toLowerCase()}`,h.hits[0]&&h.hits[0].date);
+  // havområder og nord
+  const first={};let polar=null;
+  for(const s of st)for(const g of s.segs||[]){if(!g.site||g.site.lat==null)continue;const k=seaOf(g.site.lat);if(!first[k])first[k]=s.start;if(!polar&&g.site.lat>=66.5627)polar=s.start}
+  add("s-nord","hav","N","Nordsjøen","Opphold i Nordsjøen",first.nord);
+  add("s-norske","hav","NH","Norskehavet","Opphold i Norskehavet",first.norske);
+  add("s-barents","hav","B","Barentshavet","Opphold i Barentshavet",first.barents);
+  add("s-alle","hav","3","Alle tre hav","Nordsjøen, Norskehavet og Barentshavet",first.nord&&first.norske&&first.barents?[first.nord,first.norske,first.barents].sort()[2]:null,["nord","norske","barents"].filter(k=>first[k]).length,3);
+  add("polar","hav","66°","Polarsirkelen","Opphold nord for polarsirkelen",polar);
+  // turer og steder
+  const long=st.find(s=>s.days>=21);add("lang","tur","21","21 døgn i strekk","Ett opphold på minst 21 døgn",long&&long.start);
+  const tb=stays.filter(s=>s.turnback).sort((a,b)=>a.start<b.start?-1:1)[0];add("snudd","tur","↺","Helikopteret snudde","Helikopteret måtte snu før landing",tb&&tb.start);
+  const flo=st.find(s=>(s.segs||[]).some(g=>g.flotel));add("flotell","tur","F","Flotell","Bodde på en flotell",flo&&flo.start);
+  const seen=[],rigs=[];let i5=null,i10=null,r3=null;
+  for(const s of st){if(!seen.includes(s.key)){seen.push(s.key);if(seen.length===5)i5=s.start;if(seen.length===10)i10=s.start}
+    for(const g of s.segs||[])if(g.site&&g.site.kind==="mobile"&&!rigs.includes(g.site.facilityId)){rigs.push(g.site.facilityId);if(rigs.length===3)r3=s.start}}
+  add("i5","tur","5","5 innretninger","Vært på fem ulike innretninger",i5,Math.min(seen.length,5),5);
+  add("i10","tur","10","10 innretninger","Vært på ti ulike innretninger",i10,Math.min(seen.length,10),10);
+  add("r3","tur","R3","Tre rigger","Vært på tre ulike flyttbare rigger",r3,Math.min(rigs.length,3),3);
+  // år på sokkelen
+  if(st.length){const a=st[0].start,z=st.reduce((m,s)=>(s.end||s.start)>m?(s.end||s.start):m,a),span=(toDay(z)-toDay(a))/365.25;
+    for(const n of [5,10,20])add("y"+n,"år",n+"år",`${n} år på sokkelen`,`${n} år siden første tur`,span>=n?addDays(a,Math.round(n*365.25)):null,Math.min(Math.floor(span),n),n)}
+  return B;
+}
+
 /* ---------- export ---------- */
 function toCSV(rows,delim=";"){
   return rows.map(r=>r.map(v=>{v=v==null?"":String(v);return /[";\n,\t]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(delim)).join("\r\n");
@@ -687,6 +747,6 @@ function toCSV(rows,delim=";"){
 const api={minutesOf,isFlyable,SHELF_BASES,reachable,flotelPeriods,flotelCandidates,DAY,pad,isoFromDate,toDay,fromDay,addDays,diffDays,todayIso,parseDate,fmtDate,clean,normName,tokens,nameScore,parseCSV,readXlsx,
   FIELDS,findHeaderRow,guessColumns,analyseTables,buildLegs,placeKey,derivePlaces,buildStays,normFacility,normWellbore,rowsToObjects,
   buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,nameAt,nameHistory,registryName,normFacHist,histRowAt,histNames,fieldWord,discoveryName,shortOperator,prospectFromHistory,nameSite,titleCase,toCSV,isSodirWellbore,isSodirFacility,
-  activityByFacility,dateFit,neighbours,pickAuto,heliport,flightHints,flightFit};
+  activityByFacility,dateFit,easterSunday,holidaysOffshore,badges,seaOf,neighbours,pickAuto,heliport,flightHints,flightFit};
 if(typeof module!=="undefined"&&module.exports)module.exports=api;else root.OK=api;
 })(typeof window!=="undefined"?window:globalThis);
