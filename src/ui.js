@@ -1182,6 +1182,12 @@ document.addEventListener("click",async e=>{
   else if(act==="copy")copyText(C.toCSV(stayTable(),"\t"));
   else if(act==="save")download("sokkelreiser-prosjekt.json",JSON.stringify({app:"sokkelreiser",version:1,saved:new Date().toISOString(),sourceName:S.sourceName,legs:S.legs,places:S.places,manual:S.manual,overrides:S.overrides,accepted:S.accepted,flotelAt:S.flotelAt}),"application/json");
   else if(act==="koder")download("koder.json",JSON.stringify({app:"sokkelreiser",version:1,koder:koderPayload()},null,2),"application/json");
+  else if(act==="paste"){
+    confirmDialog("Lim inn reiser","Marker tabellen med reiser i MinDaVinci (hold fingeren på teksten og dra, eller «Velg alle»), kopier og lim inn her. Overskriftene (Dato, Fra, Til …) må være med. Ingenting sendes noe sted.",
+      "Les inn",()=>{const t=($("pasteTxt")||{}).value||"";if(t.trim())handleFile(new File([t],"innlimt-tabell.csv",{type:"text/csv"}));else toast("Ingenting å lese inn.")});
+    const f=$("confirmForm");f.querySelector("p").insertAdjacentHTML("afterend",'<textarea id="pasteTxt" class="input" rows="8" style="width:100%;margin-top:10px;font:12px/1.4 monospace" placeholder="Lim inn her …" spellcheck="false"></textarea>');
+    setTimeout(()=>{const x=$("pasteTxt");if(x)x.focus()},50);
+  }
   else if(act==="share"){
     const k=koderPayload(),fr=flotelReports();if(!Object.keys(k).length&&!fr.length){toast("Du har ingen koblinger å dele ennå.");return}
     confirmDialog("Foreslå koder og flotellplasseringer","Det som sendes er kodene og navnene de er koblet til (for eksempel «SKV → SKARV»), og hvilket felt en flotell lå ved i en gitt måned (for eksempel «Floatel Endurance · Skarv · 2026-03»). Ingen datoer, reiser, firma eller personopplysninger. Du åpner et ferdig utfylt forslag hos GitHub, og du bestemmer selv om du sender det.","Åpne forslag",()=>{
