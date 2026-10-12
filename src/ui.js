@@ -1566,7 +1566,9 @@ document.addEventListener("click",async e=>{
     setTimeout(()=>{const x=$("pasteTxt");if(x)x.focus()},50);
   }
   else if(act==="share"){
-    const k=koderPayload(),fr=flotelReports();if(!Object.keys(k).length&&!fr.length){toast("Du har ingen koblinger å dele ennå.");return}
+    const k=koderPayload(),fr=flotelReports();
+    for(const c of Object.keys(k))if(CODES[c])delete k[c];   // koder som allerede står i listen, sendes ikke på nytt
+    if(!Object.keys(k).length&&!fr.length){toast("Du har ingen nye koblinger å dele. Det du har koblet står allerede i kodelisten.");return}
     confirmDialog("Send forslag til kodelisten","Det som sendes er kodene og navnene de er koblet til (for eksempel «SKV → SKARV»), og hvilket felt en flotell lå ved i en gitt måned. Ingen datoer, reiser, firma eller personopplysninger. Forslagene legges til i en felles liste. De brukes først når flere uavhengige brukere er enige, og de kan aldri slette eller endre det som allerede står der.","Send",async()=>{
       try{
         const r=await fetch("api/koder.php",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({koder:k,floteller:fr})});
