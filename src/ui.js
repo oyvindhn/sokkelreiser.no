@@ -552,7 +552,8 @@ class Chart{
       const r=m.r;ctx.beginPath();ctx.globalAlpha=m.dim?.3:1;
       if(m.port){ctx.rect(x-r,y-r,r*2,r*2);ctx.fillStyle=col.ink;ctx.fill();ctx.lineWidth=1.5;ctx.strokeStyle=col.panel;ctx.stroke()}
       else{
-        ctx.arc(x,y,r,0,Math.PI*2);
+        if(m.fixed){const q=r*1.2;ctx.moveTo(x,y-q);ctx.lineTo(x+q*.95,y+q*.7);ctx.lineTo(x-q*.95,y+q*.7);ctx.closePath()}   // fast installasjon: trekant
+        else ctx.arc(x,y,r,0,Math.PI*2);                                                                                  // flyttbar rigg: sirkel
         if(m.conf==="usikker"||m.conf==="ukjent"){ctx.fillStyle=col.halo;ctx.fill();ctx.setLineDash([2.5,2]);ctx.lineWidth=1.6;ctx.strokeStyle=m.muted?col.muted:col.accent;ctx.stroke();ctx.setLineDash([])}
         else{ctx.fillStyle=m.muted?col.muted:col.accent;ctx.fill();ctx.lineWidth=1.5;ctx.strokeStyle=col.panel;ctx.stroke()}
       }
@@ -676,7 +677,7 @@ function stayMapItems(){
   const mapLines=a=>{const rigs=[...a.rigs.values()];
     if(a.site.kind==="fixed")return [[a.site.name,...rigs.filter(r=>C.normName(r)!==C.normName(a.site.name))].join(" / ")];
     return [rigs.join(" / "),a.site.name,a.site.operatorShort].filter(Boolean)};
-  const markers=[...agg.values()].map(a=>({id:a.site.id,lat:a.site.lat,lon:a.site.lon,r:PIN,conf:a.conf,sel:a.sel,dim:a.dim,lines:mapLines(a),label:mapLines(a).join(" • "),short:[...a.codes.values()].join(" / "),days:a.days,data:a}));
+  const markers=[...agg.values()].map(a=>({id:a.site.id,lat:a.site.lat,lon:a.site.lon,r:PIN,conf:a.conf,sel:a.sel,dim:a.dim,fixed:a.site.kind==='fixed',lines:mapLines(a),label:mapLines(a).join(" • "),short:[...a.codes.values()].join(" / "),days:a.days,data:a}));
   for(const pt of ports.values())markers.push({id:pt.site.id,lat:pt.site.lat,lon:pt.site.lon,r:4,port:true,dim:pt.dim,label:pt.site.name,data:{port:true,n:pt.n,site:pt.site}});
   return {markers,lines,routes:[...routes.values()]};
 }
@@ -685,7 +686,7 @@ function rigMapItems(){
   if(!RIG)return {markers:[],lines:[]};
   const f0=RIG.fac;
   if(!RIG.tl||!RIG.tl.visits.length)  // fast installasjon (eller rigg uten brønner): vis posisjonen fra Sodir
-    return f0.lat!=null?{markers:[{id:"F"+f0.id,lat:f0.lat,lon:f0.lon,r:PIN,conf:f0.moveable?"usikker":"sikker",sel:true,label:C.titleCase(f0.name)}],lines:[]}:{markers:[],lines:[]};
+    return f0.lat!=null?{markers:[{id:"F"+f0.id,lat:f0.lat,lon:f0.lon,r:PIN,conf:f0.moveable?"usikker":"sikker",fixed:!f0.moveable,sel:true,label:C.titleCase(f0.name)}],lines:[]}:{markers:[],lines:[]};
   const {tl}=RIG;const mine=mineSites();
   const markers=tl.sites.map(s=>{const days=s.wells.reduce((n,w)=>n+Math.max(1,C.diffDays(w.entry,w.comp||w.entry)),0);
     return {id:s.id,lat:s.lat,lon:s.lon,r:PIN,days,conf:"sikker",muted:!mine.has(s.id),sel:S.ui.rigSel===s.id,dim:false,label:s.name,data:{site:s,rig:true}}});
