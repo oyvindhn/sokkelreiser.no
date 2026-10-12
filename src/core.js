@@ -443,9 +443,12 @@ function nameSite(s){
 }
 /* «Lundin Norway AS» -> «Lundin», «Phillips Petroleum Company Norway» -> «Phillips» */
 function shortOperator(o){
-  const drop=/^(as|asa|a\/s|ab|bv|nv|ltd|limited|inc|plc|norge|norway|company|petroleum|energy|oil|exploration|production|e&p|operating|operations|group|international)$/i;
+  const drop=/^(as|asa|a\/s|ab|bv|nv|ltd|limited|inc|plc|norge|norway|company|petroleum|energy|exploration|production|and|&|e&p|operating|operations|group|international|oljeselskap)$/i;
   const t=String(o||"").replace(/[.,]/g," ").split(/\s+/).filter(Boolean);
-  const k=t.filter(x=>!drop.test(x)),r=(k.length?k:t).join(" ");return r===r.toUpperCase()?titleCase(r):r;
+  const k=t.filter(x=>!drop.test(x)),r=(k.length?k:t).join(" ");
+  const w=r.split(" ");
+  // «LOTOS» -> «Lotos»; «Det norske» -> «Det Norske»; «Aker BP» beholdes
+  return r===r.toUpperCase()||(w.length>1&&w.slice(1).every(x=>x===x.toLowerCase()))?titleCase(r):r;
 }
 function rigTimeline(facId,wellbores){
   const wbs=wellbores.filter(w=>w.entry&&w.lat!=null).slice().sort((a,b)=>a.entry<b.entry?-1:a.entry>b.entry?1:0);

@@ -532,14 +532,21 @@ class Chart{
       ctx.globalAlpha=1;
       this.hits.push({x,y,r:r+4,m});
     }
-    // labels with simple collision avoidance
-    const boxes=[];ctx.font=`600 11.5px ${col.body}`;ctx.textBaseline="middle";const portFont=`500 10.5px ${col.mono}`,instFont=ctx.font;
-    const order=ms.slice().sort((a,b)=>(b.sel?1:0)-(a.sel?1:0)||(b.port?1:0)-(a.port?1:0)||(b.days||0)-(a.days||0));
+    // etiketter: kort kode (MGU, NIT) som standard; full tekst ved hover, på valgt punkt eller når «Fulle navn» er på
+    const boxes=[];ctx.textBaseline="middle";const portFont=`500 10.5px ${col.mono}`,instFont=`600 11.5px ${col.body}`,tagFont=`600 11px ${col.mono}`;
+    const full=m=>m.id===this.hoverId||m.sel||this.fullNames;
+    const order=ms.slice().sort((a,b)=>(b.id===this.hoverId?1:0)-(a.id===this.hoverId?1:0)||(b.sel?1:0)-(a.sel?1:0)||(b.port?1:0)-(a.port?1:0)||(b.days||0)-(a.days||0));
     for(const m of order){
-      if(!m.label||(this.z<5.2&&!m.sel&&!m.port)||(m.dim&&!m.sel))continue;
-      ctx.font=m.port?portFont:instFont;const [x,y]=this.toScreen(m.lat,m.lon);const tw=ctx.measureText(m.label).width;const bx=x+m.r+5,by=y-8,bw=tw+6,bh=16;
-      if(boxes.some(b=>bx<b.x+b.w&&bx+bw>b.x&&by<b.y+b.h&&by+bh>b.y))continue;boxes.push({x:bx,y:by,w:bw,h:bh});
-      ctx.fillStyle=col.halo;ctx.fillRect(bx-1,by+1,bw,bh-2);ctx.fillStyle=m.dim?col.muted:col.ink;ctx.fillText(m.label,bx+2,y);
+      const isFull=!m.port&&full(m),text=m.port?m.label:isFull?m.label:(m.short||m.label);
+      if(!text||(m.dim&&!m.sel&&m.id!==this.hoverId))continue;
+      if(!m.port&&!isFull&&this.z<4.2)continue;
+      if(isFull&&this.z<5.2&&!m.sel&&m.id!==this.hoverId)continue;
+      ctx.font=m.port?portFont:isFull?instFont:tagFont;const [x,y]=this.toScreen(m.lat,m.lon);const tw=ctx.measureText(text).width;const bx=x+m.r+5,by=y-8,bw=tw+6,bh=16;
+      const hot=m.id===this.hoverId;
+      if(!hot&&boxes.some(b=>bx<b.x+b.w&&bx+bw>b.x&&by<b.y+b.h&&by+bh>b.y))continue;boxes.push({x:bx,y:by,w:bw,h:bh});
+      ctx.fillStyle=col.halo;ctx.fillRect(bx-1,by+1,bw,bh-2);
+      if(hot){ctx.strokeStyle=col.accent;ctx.lineWidth=1;ctx.strokeRect(bx-.5,by+1.5,bw-1,bh-3)}
+      ctx.fillStyle=m.dim?col.muted:col.ink;ctx.fillText(text,bx+2,y);
     }
     ctx.restore();
   }
@@ -583,7 +590,7 @@ class Chart{
 /* ================= map content ================= */
 let chart;
 function inYear(s,y){return !y||(s.start.slice(0,4)<=String(y)&&s.end.slice(0,4)>=String(y))}
-const MAPOPT=Object.assign({routes:true,drift:false},store.get("mapopt",{}));
+const MAPOPT=Object.assign({routes:true,drift:false,names:false},store.get("mapopt",{}));
 const PIN=5.5;   // én størrelse for alle installasjoner
 /* Hvor var en installasjon på en dato? Bruker oppholdet som dekker datoen. */
 function siteAt(key,date){
@@ -603,11 +610,12 @@ function stayMapItems(){
     const dim=!inYear(st,y);
     for(const sg of st.segs){
       if(!sg.site)continue;
-      const k=sg.site.id;if(!agg.has(k))agg.set(k,{site:sg.site,days:0,stays:new Set(),conf:"ukjent",dim:true,sel:false,rigs:new Map()});
+      const k=sg.site.id;if(!agg.has(k))agg.set(k,{site:sg.site,days:0,stays:new Set(),conf:"ukjent",dim:true,sel:false,rigs:new Map(),codes:new Map()});
       const a=agg.get(k);
       { // hvem lå her: riggens navn da (rigger) eller installasjonens navn (faste, boligrigger)
         const p=S.places[st.key],nm=sg.thenName?C.titleCase(sg.thenName):sg.site.kind==="fixed"&&p&&p.link&&p.link.type==="sodir"&&p.link.id===sg.site.facilityId?sg.site.name:p?p.label:st.key;
         if(!dim||!a.rigs.size)a.rigs.set(C.normName(nm),nm);
+        const raw=p?p.raw:st.key;a.codes.set(C.normName(raw),raw);
       }if(!dim){a.days+=Math.max(1,C.diffDays(sg.start,sg.end));a.dim=false}a.stays.add(st.id);
       if(rank[sg.conf]>rank[a.conf])a.conf=sg.conf;
       if(S.ui.sel===st.id)a.sel=true;
@@ -636,7 +644,7 @@ function stayMapItems(){
   }
   const mapLabel=a=>{const rigs=[...a.rigs.values()];if(a.site.kind==="fixed"){const own=[a.site.name,...rigs.filter(r=>C.normName(r)!==C.normName(a.site.name))];return own.join(" / ")}
     return [rigs.join(" / "),a.site.name,a.site.operatorShort].filter(Boolean).join(" • ")};
-  const markers=[...agg.values()].map(a=>({id:a.site.id,lat:a.site.lat,lon:a.site.lon,r:PIN,conf:a.conf,sel:a.sel,dim:a.dim,label:mapLabel(a),days:a.days,data:a}));
+  const markers=[...agg.values()].map(a=>({id:a.site.id,lat:a.site.lat,lon:a.site.lon,r:PIN,conf:a.conf,sel:a.sel,dim:a.dim,label:mapLabel(a),short:[...a.codes.values()].join(" / "),days:a.days,data:a}));
   for(const pt of ports.values())markers.push({id:pt.site.id,lat:pt.site.lat,lon:pt.site.lon,r:4,port:true,dim:pt.dim,label:pt.site.name,data:{port:true,n:pt.n,site:pt.site}});
   return {markers,lines,routes:[...routes.values()]};
 }
@@ -1101,13 +1109,14 @@ $("btnMenu").addEventListener("click",()=>{const m=$("menu");m.hidden=!m.hidden;
 $("zin").addEventListener("click",()=>chart.zoomAt(2));
 $("zout").addEventListener("click",()=>chart.zoomAt(.5));
 $("zfit").addEventListener("click",fitToContent);
-for(const [id,key] of [["optRoutes","routes"],["optDrift","drift"]]){const el=$(id);el.checked=MAPOPT[key];el.addEventListener("change",()=>{MAPOPT[key]=el.checked;store.set("mapopt",MAPOPT);updateMap()})}
+for(const [id,key] of [["optRoutes","routes"],["optDrift","drift"],["optNames","names"]]){const el=$(id);el.checked=MAPOPT[key];el.addEventListener("change",()=>{MAPOPT[key]=el.checked;store.set("mapopt",MAPOPT);chart.fullNames=MAPOPT.names;updateMap();chart.req()})}
 
 /* ================= boot ================= */
-chart=new Chart($("map"));
+chart=new Chart($("map"));chart.fullNames=MAPOPT.names;
 const tip=$("tip");
 chart.cb.hover=(m,p,geo)=>{
   $("readout").textContent=geo?fmtPos(geo[0],geo[1]):"";
+  const hid=m&&!m.port?m.id:null;if(hid!==(chart.hoverId||null)){chart.hoverId=hid;chart.req()}
   if(!m||!p){tip.hidden=true;$("map").style.cursor="";return}
   $("map").style.cursor="pointer";
   const d=m.data||{};const s=d.site||{};
@@ -1115,7 +1124,7 @@ chart.cb.hover=(m,p,geo)=>{
   if(d.port){body=`<span class="mono">Heliport</span><br>${d.n} ${plural(d.n,"flyreise","flyreiser")}`}
   else if(d.rig){const n=s.wells.length;body=`<span class="mono">${h(s.sub||s.well)}</span><br>${n} ${plural(n,"brønn","brønner")} · ${s.wells[0].entry.slice(0,4)}–${(s.wells[n-1].comp||s.wells[n-1].entry).slice(0,4)}`}
   else body=`${d.stays?d.stays.size:0} ${plural(d.stays?d.stays.size:0,"tur","turer")} · ${d.days||0} døgn${s.sub&&s.kind==="mobile"?`<br><span class="mono">${h(s.sub)}</span>`:""}`;
-  tip.innerHTML=`<b>${h(m.label)}</b>${body}`;tip.hidden=false;
+  tip.innerHTML=m.port?`<b>${h(m.label)}</b>${body}`:body;tip.hidden=false;
   const W=chart.W;tip.style.left=Math.min(p[0],W-270)+"px";tip.style.top=p[1]+"px";
 };
 chart.cb.click=(m,geo)=>{

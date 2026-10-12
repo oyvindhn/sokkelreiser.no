@@ -228,7 +228,7 @@ test("lokasjonsnavn: brønn og funnavn, ellers felt, ellers bare brønn", () => 
 });
 
 test("operatør kortes ned uten å miste identiteten", () => {
-  for (const [a, b] of [["Lundin Norway AS", "Lundin"], ["Equinor Energy AS", "Equinor"], ["Phillips Petroleum Company Norway", "Phillips"], ["Aker BP ASA", "Aker BP"], ["A/S Norske Shell", "Norske Shell"], ["LUNDIN NORWAY AS", "Lundin"]])
+  for (const [a, b] of [["Lundin Norway AS", "Lundin"], ["Equinor Energy AS", "Equinor"], ["Phillips Petroleum Company Norway", "Phillips"], ["Aker BP ASA", "Aker BP"], ["A/S Norske Shell", "Norske Shell"], ["LUNDIN NORWAY AS", "Lundin"], ["Premier Oil Norge AS", "Premier Oil"], ["Det norske oljeselskap ASA", "Det Norske"], ["LOTOS Exploration and Production Norge AS", "Lotos"], ["Wintershall Dea Norge AS", "Wintershall Dea"]])
     assert.equal(C.shortOperator(a), b, a);
 });
 
