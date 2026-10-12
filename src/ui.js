@@ -5,6 +5,9 @@ const C=window.OK;
 const $=id=>document.getElementById(id);
 const h=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
+/* Funksjoner som er klare i koden, men ikke lansert. Sett til true for å vise fanen. */
+const FEATURES={rig:false,places:false};
+
 /* ================= storage (browser only) ================= */
 const PFX="sokkelreise:";
 try{ // flytt data lagret under det gamle navnet (Offshorekart)
@@ -827,7 +830,7 @@ function fitToContent(){
 }
 
 /* ================= views ================= */
-function renderAll(){renderStays();renderPlaces();if(S.ui.tab==="rig")renderRig();updateMap();renderPlaceCount()}
+function renderAll(){renderStays();renderPlaces();if(S.ui.tab==="rig")renderRig();if(S.ui.tab==="wrap")renderWrap();updateMap();renderPlaceCount()}
 function renderPlaceCount(){
   const n=Object.values(S.places).filter(p=>p.kind==="installation"&&!p.link).length;
   const el=$("placeCount");el.hidden=!n;el.textContent=n;
@@ -854,11 +857,11 @@ function emptyState(){
     <div class="privacy"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 5V3.5a3 3 0 0 1 6 0V5M2.5 5h7v5.5h-7z" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
       <span>Ingen innlogging og ingen server. Dataene dine blir liggende i denne nettleseren til du sletter dem.</span></div>
   </div>
-  <div class="card">
+  ${FEATURES.rig?`<div class="card">
     <h3>Har du ingen fil for hånden?</h3>
     <p class="small muted" style="margin:0">Slå opp en rigg og se hvor den har boret, år for år. Skriv en dato for å se hvor den lå akkurat da.</p>
     <div><button class="btn ghost small" type="button" data-act="rigtab">Åpne rigghistorikk</button></div>
-  </div>`;
+  </div>`:""}`;
 }
 function histogram(byYear,sel){
   const years=Object.keys(byYear).map(Number).sort((a,b)=>a-b);if(!years.length)return "";
@@ -910,7 +913,6 @@ function funHtml(y){
     </div>
     <div class="fun-row">${track}<div class="fun-cap"><b>${nf(moon*100,moon<.1?2:1)} %</b> av veien til månen<small>${nf(MOON_KM-f.km)} km igjen</small></div></div>
     <div class="fun-row">${ring}<div class="fun-cap"><b>${nf(eq,1)} ganger</b> rundt ekvator<small>${laps?`${laps} hele runder`:"ikke en hel runde ennå"}</small></div></div>
-    <button type="button" class="fun-card" data-act="card"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.5" y="1.5" width="11" height="13" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M5 10.5l2-2 1.5 1.5L11 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>${y?`Lag «Mitt år offshore ${y}»`:"Lag «Min offshorekarriere»"}</button>
   </div>`;
 }
 function renderStays(){
@@ -930,7 +932,7 @@ function renderStays(){
   if(pending)html+=`<div class="answer">${pending} ${plural(pending,"opphold","opphold")} er over fem uker og telles ikke med i døgn før du har sjekket og godtatt ${pending>1?"dem":"det"}. Trolig mangler en reise i arket.</div>`;
   if(need)html+=`<div class="answer">${need} ${plural(need,"installasjon","installasjoner")} i loggen kunne ikke kobles sikkert automatisk.${D.status==="err"?" Sodir svarer ikke akkurat nå, men du kan plassere dem i kartet selv eller laste inn Sodir-data som fil.":""} <button class="linkish" type="button" data-act="placestab">Se forslag</button></div>`;
   else if(D.status==="err"&&unknown)html+=`<div class="answer">Fikk ikke kontakt med Sodir, så posisjonene til flyttbare rigger mangler. Prøv igjen senere, eller last inn Sodir sin brønnbanetabell som CSV via <b>Importer</b>.</div>`;
-  html+=funHtml(y);
+  html+=`<button type="button" class="fun-card" data-act="card"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.5" y="1.5" width="11" height="13" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M5 10.5l2-2 1.5 1.5L11 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>${y?`Mitt år offshore ${y}`:"Min offshorekarriere"} – se og del ›</button>`;
   html+=`<div class="hist"><p class="eyebrow"><span>Døgn offshore per år</span>${y?`<button class="linkish" type="button" data-act="allyears">Vis alle år</button>`:`<span style="text-transform:none;letter-spacing:0">Trykk på et år for å filtrere</span>`}</p>${histogram(byYear,y)}</div>`;
   const groups=new Map();for(const s of vis.slice().reverse()){const yr=s.start.slice(0,4);if(!groups.has(yr))groups.set(yr,[]);groups.get(yr).push(s)}
   for(const [yr,list] of groups){
@@ -1028,7 +1030,7 @@ function stayDetail(s){
     ${s.long?`<button class="btn small${S.accepted[s.id]?" ghost":""}" type="button" data-act="${S.accepted[s.id]?"unacceptlong":"acceptlong"}" data-id="${h(s.id)}">${S.accepted[s.id]?"Angre godkjenning":"Godta oppholdet"}</button>`:""}
     <button class="btn small ghost" type="button" data-act="pickstay" data-id="${h(s.id)}">${S.overrides[s.id]?"Flytt manuell posisjon":"Sett posisjon for denne turen"}</button>
     ${S.overrides[s.id]?`<button class="btn small ghost" type="button" data-act="unpickstay" data-id="${h(s.id)}">Fjern manuell posisjon</button>`:""}
-    ${mob?`<button class="btn small ghost" type="button" data-act="openrig" data-id="${h(mob.site.facilityId)}" data-date="${h(s.start)}">Rigghistorikk</button>`:""}
+    ${mob&&FEATURES.rig?`<button class="btn small ghost" type="button" data-act="openrig" data-id="${h(mob.site.facilityId)}" data-date="${h(s.start)}">Rigghistorikk</button>`:""}
     ${p&&!p.link?`<button class="btn small accent" type="button" data-act="editplace" data-key="${h(s.key)}">Koble installasjonen</button>`:""}
     ${s.manual?`<button class="btn small ghost" type="button" data-act="delmanual" data-id="${h(s.id)}">Slett oppholdet</button>`:""}
   </div></div>`;
@@ -1134,7 +1136,7 @@ function renderPlaces(){
     }
     return html+`</div>`;
   };
-  let html=`<p class="small muted" style="margin:0">Installasjonene kobles automatisk mot Sodir ut fra koden, datoene du var der og hvem du fløy mellom. For flyttbare rigger finner kartet da lokasjonen ut fra datoen på turen. Er en kobling feil, trykk «Endre».</p>`;
+  let html=(FEATURES.places?"":`<button class="linkish back-link" type="button" data-act="stays">‹ Tilbake til Mine opphold</button>`)+`<p class="small muted" style="margin:0">Installasjonene kobles automatisk mot Sodir ut fra koden, datoene du var der og hvem du fløy mellom. For flyttbare rigger finner kartet da lokasjonen ut fra datoen på turen. Er en kobling feil, trykk «Endre».</p>`;
   if(need.length)html+=`<div><p class="eyebrow"><span>Må kobles · ${need.length}</span></p>${need.map(p=>row(p,"Koble","need")).join("")}</div>`;
   if(auto.length)html+=`<div><p class="eyebrow"><span>Koblet automatisk · ${auto.length}</span></p>${auto.map(p=>row(p,"Endre","auto")).join("")}</div>`;
   if(ok.length)html+=`<div><p class="eyebrow"><span>Koblet · ${ok.length}</span></p>${ok.map(p=>row(p,"Endre","ok")).join("")}</div>`;
@@ -1176,8 +1178,9 @@ function linkPlace(key,link,label){
 function switchTab(t){
   S.ui.tab=t;
   for(const b of document.querySelectorAll(".tab"))b.setAttribute("aria-selected",String(b.dataset.tab===t));
-  for(const k of ["stays","rig","places"])$("view-"+k).hidden=k!==t;
+  for(const k of ["stays","wrap","rig","places"])$("view-"+k).hidden=k!==t;
   if(t==="rig")renderRig();
+  if(t==="wrap")renderWrap();
   renderMDetail();if(isMobile())Sheet.refresh();
   updateMap();
 }
@@ -1284,7 +1287,7 @@ const Sheet={
   init(){
     this.el=$("panel");
     for(const el of [$("grip"),this.el.querySelector(".brand"),this.el.querySelector(".tabs"),$("mdet")])bindSheetDrag(el);
-    for(const v of ["view-stays","view-rig","view-places","mdet"])bindScrollDrag($(v));
+    for(const v of ["view-stays","view-wrap","view-rig","view-places","mdet"])bindScrollDrag($(v));
     $("grip").addEventListener("click",()=>{if(Sheet.justDragged)return;Sheet.set({peek:"half",half:"full",full:"peek"}[Sheet.state])});
     this.el.addEventListener("focusin",e=>{const t=e.target;if(isMobile()&&t.matches&&t.matches("input:not([type=checkbox]),select,textarea")&&this.state!=="full")this.set("full")});
     addEventListener("resize",()=>this.refresh());
@@ -1482,7 +1485,7 @@ function drawCard(st){
   ctx.font=cardFont(600,40);ctx.fillStyle=K.accent;ctx.fillText("døgn",M+dw+18,240);ctx.fillStyle=K.ink;ctx.fillText("offshore",M+dw+18,290);
   ctx.font=cardFont(700,40,"disp");ctx.fillStyle=K.accent2;ctx.textAlign="right";ctx.fillText(period,W-M,290);ctx.textAlign="left";
   ctx.font=cardFont(500,28);ctx.fillStyle=K.muted;
-  const yrs=st.days/365.25,sub=career?`${st.trips} turer · ${st.insts.size} innretninger · ${yrs>=1?nf(yrs,1)+" år av livet på sokkelen":"≈ "+nf(st.days/7,0)+" uker på sokkelen"}`:`${st.trips} turer · ${st.insts.size} innretninger · ${nf(st.days/365.25*100,0)} % av året`;
+  const yrs=st.days/365.25,sub=career?`${st.trips} ${plural(st.trips,"tur","turer")} · ${st.insts.size} ${plural(st.insts.size,"innretning","innretninger")} · ${yrs>=1?nf(yrs,1)+" år av livet på sokkelen":"≈ "+nf(st.days/7,0)+" uker på sokkelen"}`:`${st.trips} ${plural(st.trips,"tur","turer")} · ${st.insts.size} ${plural(st.insts.size,"innretning","innretninger")} · ${nf(st.days/365.25*100,0)} % av året`;
   ctx.fillText(fitText(ctx,sub,W-2*M),M,350);
   // kart
   const bars=career&&st.last>st.first,mapH=bars?400:480;
@@ -1530,15 +1533,28 @@ async function renderCard(y){
   const file=new File([blob],CARD_BLOB.name,{type:"image/png"});
   const can=!!(navigator.canShare&&navigator.canShare({files:[file]}));$("cardShare").hidden=!can;$("cardSave").classList.toggle("accent",!can);$("cardSave").classList.toggle("ghost",can);
 }
-function openCard(y){
-  if(!STAYS.some(s=>!s.turnback)){toast("Importer reiseloggen først.");return}
-  const ys=[...new Set(STAYS.filter(s=>!s.turnback).map(s=>+s.start.slice(0,4)))].sort((a,b)=>b-a);
-  const sel=$("cardYear");sel.innerHTML=`<option value="">Hele karrieren</option>`+ys.map(v=>`<option value="${v}">${v}</option>`).join("");sel.value=y?String(y):"";
-  sel.onchange=()=>renderCard(sel.value?+sel.value:null);
-  $("dlgCard").showModal();renderCard(y||null);
+function openCard(y){S.ui.year=y||null;switchTab("wrap");renderStays();updateMap();fitToContent()}
+/* Fanen «Oppsummering»: velg hele karrieren eller et år, se kortet, del det. Året er det samme som i «Mine opphold» og kartet. */
+let WRAP_KEY="";
+function renderWrap(){
+  const v=$("view-wrap");
+  if(!STAYS.some(s=>!s.turnback)){v.innerHTML=`<p class="muted" style="margin:0">Når du har importert reiseloggen, får du en oppsummering av hele karrieren og hvert år offshore, som du kan dele.</p><div><button class="btn accent" type="button" data-act="pick">Velg fil</button></div>`;WRAP_KEY="";return}
+  const y=S.ui.year,ys=[...new Set(STAYS.filter(s=>!s.turnback).map(s=>+s.start.slice(0,4)))].sort((a,b)=>b-a);
+  const key=[y,STAYS.length,STAYS.reduce((n,s)=>n+s.segs.filter(g=>g.site).length,0),D.status].join("|");
+  if(key===WRAP_KEY&&$("cardImg"))return;WRAP_KEY=key;
+  v.innerHTML=`<div class="wrap-head"><h2>${y?`Mitt år offshore`:`Min offshorekarriere`}</h2><span class="muted">${y||`${ys[ys.length-1]}–${ys[0]}`}</span></div>
+    <div class="chips wrap-years" role="radiogroup" aria-label="Periode">
+      <button class="chip${!y?" on":""}" type="button" role="radio" aria-checked="${!y}" data-act="wrapyear" data-year="">Hele karrieren</button>
+      ${ys.map(v=>`<button class="chip${y===v?" on":""}" type="button" role="radio" aria-checked="${y===v}" data-act="wrapyear" data-year="${v}">${v}</button>`).join("")}
+    </div>
+    <div class="card-prev"><img id="cardImg" alt="${y?`Mitt år offshore ${y}`:"Min offshorekarriere"}"></div>
+    <div class="wrap-actions"><button class="btn accent" type="button" id="cardShare" hidden>Del …</button><button class="btn ghost" type="button" id="cardSave">Last ned bilde</button></div>
+    <p class="small muted" style="margin:0">Kortet lages her i nettleseren. Ingenting sendes noe sted før du selv deler det.</p>
+    ${funHtml(y)}`;
+  $("cardSave").onclick=()=>{if(CARD_BLOB)download(CARD_BLOB.name,CARD_BLOB.blob,"image/png")};
+  $("cardShare").onclick=async()=>{if(!CARD_BLOB)return;try{await navigator.share({files:[new File([CARD_BLOB.blob],CARD_BLOB.name,{type:"image/png"})],title:"Sokkelreiser"})}catch(_){}};
+  renderCard(y||null);
 }
-$("cardSave").addEventListener("click",()=>{if(CARD_BLOB)download(CARD_BLOB.name,CARD_BLOB.blob,"image/png")});
-$("cardShare").addEventListener("click",async()=>{if(!CARD_BLOB)return;try{await navigator.share({files:[new File([CARD_BLOB.blob],CARD_BLOB.name,{type:"image/png"})],title:"Sokkelreiser"})}catch(_){}});
 
 /* ================= events ================= */
 document.addEventListener("click",async e=>{
@@ -1553,6 +1569,7 @@ document.addEventListener("click",async e=>{
   if(act==="pick")$("file").click();
   else if(act==="add")openAddDialog();
   else if(act==="rigtab")switchTab("rig");
+  else if(act==="stays"){switchTab("stays");fitToContent()}
   else if(act==="placestab")switchTab("places");
   else if(act==="allyears"){S.ui.year=null;renderStays();updateMap();fitToContent()}
   else if(act==="csv")download("sokkelreiser-opphold.csv","﻿"+C.toCSV(stayTable()),"text/csv;charset=utf-8");
@@ -1596,6 +1613,7 @@ document.addEventListener("click",async e=>{
   else if(act==="pickplace")startPick("place",b.dataset.key,"Klikk der installasjonen ligger");
   else if(act==="mclose")closeMDetail();
   else if(act==="card")openCard(S.ui.year);
+  else if(act==="wrapyear"){S.ui.year=b.dataset.year?+b.dataset.year:null;S.ui.sel=null;renderStays();renderWrap();updateMap();fitToContent()}
   else if(act==="mgo")selectStay(b.dataset.id,b.dataset.dir);
 });
 document.addEventListener("change",e=>{
@@ -1617,6 +1635,8 @@ function selectStay(id,dir){
   const pts=s.segs.filter(g=>g.site).map(g=>[g.site.lat,g.site.lon]);
   if(pts.length===1)chart.flyTo(pts[0][0],pts[0][1],Math.max(chart.z,7));else if(pts.length)chart.fit(pts);
 }
+for(const b of document.querySelectorAll(".tab[data-feature]"))if(!FEATURES[b.dataset.feature])b.hidden=true;
+if(!FEATURES.rig&&S.ui.tab==="rig")S.ui.tab="stays";
 for(const b of document.querySelectorAll(".tab"))b.addEventListener("click",()=>{if(isMobile()&&Sheet.state==="peek")Sheet.set("half");switchTab(b.dataset.tab);if(b.dataset.tab!=="places")fitToContent()});
 $("btnImport").addEventListener("click",()=>$("file").click());
 $("file").addEventListener("change",e=>{const f=e.target.files[0];if(f)handleFile(f);e.target.value=""});

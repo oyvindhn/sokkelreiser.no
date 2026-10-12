@@ -36,10 +36,12 @@
     </header>
     <nav class="tabs" role="tablist">
       <button class="tab" role="tab" id="tab-stays" aria-selected="true" data-tab="stays" type="button">Mine opphold</button>
-      <button class="tab" role="tab" id="tab-rig" aria-selected="false" data-tab="rig" type="button">Rigghistorikk</button>
-      <button class="tab" role="tab" id="tab-places" aria-selected="false" data-tab="places" type="button">Installasjoner<span class="count" id="placeCount" hidden></span></button>
+      <button class="tab" role="tab" id="tab-wrap" aria-selected="false" data-tab="wrap" type="button">Oppsummering</button>
+      <button class="tab" role="tab" id="tab-rig" aria-selected="false" data-tab="rig" data-feature="rig" type="button">Rigghistorikk</button>
+      <button class="tab" role="tab" id="tab-places" aria-selected="false" data-tab="places" data-feature="places" type="button">Installasjoner<span class="count" id="placeCount" hidden></span></button>
     </nav>
     <section class="view" id="view-stays" role="tabpanel"></section>
+    <section class="view" id="view-wrap" role="tabpanel" hidden></section>
     <section class="view" id="view-rig" role="tabpanel" hidden></section>
     <section class="view" id="view-places" role="tabpanel" hidden></section>
     <section class="mdet" id="mdet" hidden aria-live="polite"></section>
@@ -70,11 +72,5 @@
 </div>
 
 <dialog id="dlgAdd"><form class="dlg" method="dialog" id="addForm"></form></dialog>
-<dialog id="dlgCard" class="dlg-card"><form class="dlg" method="dialog" id="cardForm">
-  <div class="card-head"><h2>Del kortet</h2><select class="input" id="cardYear" aria-label="Periode"></select></div>
-  <div class="card-prev"><img id="cardImg" alt="Oppsummering av tiden offshore"></div>
-  <p class="small muted" style="margin:0">Kortet lages her i nettleseren. Ingenting sendes noe sted før du selv deler det.</p>
-  <div class="foot"><button class="btn ghost" value="cancel" type="submit">Lukk</button><button class="btn ghost" type="button" id="cardSave">Last ned bilde</button><button class="btn accent" type="button" id="cardShare" hidden>Del …</button></div>
-</form></dialog>
 <dialog id="dlgConfirm"><form class="dlg" method="dialog" id="confirmForm"></form></dialog>
 <div class="toast" id="toast" hidden></div>
