@@ -3,6 +3,11 @@
   "version": 1,
   "om": "Hvor floteller (boligrigger) har ligget. Kun offentlige kilder: Havtils samtykkebrev og rederienes kvartalsrapporter. 'fra' i et samtykkebrev er brevdatoen, ikke ankomst. Posisjonen hentes fra Sodir via 'inst' eller 'felt'.",
   "floteller": {
+    "HAVEN": [
+      {"felt": "TYRA (DANMARK)", "utland": true, "til": "2024-06-30", "kilde": "Jacktel, årsrapport 2024: kontrakten med TotalEnergies DK på Tyra endte 30.6.2024", "url": "https://jacktel.no/wp-content/uploads/sites/2/2025/04/Jacktel-Annual-report-2024.pdf"},
+      {"felt": "DRAUPNER", "inst": "DRAUPNER S", "fra": "2024-11-01", "til": "2026-05-31", "kilde": "Havtil, samtykke til Gassco 2024 (Draupner robusthetsprosjekt); Jacktel: installert på Draupner tidlig i november 2024, kontrakten endte 27.5.2026", "url": "https://www.havtil.no/en/supervision/consents/2024/gassco--consent-for-the-use-of-haven/"},
+      {"felt": "VALHALL", "fra": "2026-06-02", "kilde": "Jacktel, Q2 2026: installert på Valhall 2.6.2026, 15 måneder fast for Aker BP", "url": "https://jacktel.no/wp-content/uploads/sites/2/2026/08/Jacktel-Q2-2026.pdf"}
+    ],
     "FLOATEL ENDURANCE": [
       {"felt": "GOLIAT", "inst": "GOLIAT FPSO", "fra": "2017-08-02", "kilde": "Havtil, samtykke 2.8.2017 (brevdato)", "url": "https://www.havtil.no/contentassets/2e7175e4f2044b6e90d608193adba1ee/2017_665_samtykke-eni-bruk-av-floatel-endurance-pa-goliatfeltet.pdf"},
       {"felt": "MARTIN LINGE", "til": "2021-07-31", "kilde": "Havtil, samtykke 18.12.2020: videre bruk fram til 31.7.2021", "url": "https://www.havtil.no/contentassets/f03df464ea64499180c5f5a2022fb902/2020_2235-brev-med-samtykke-til-videre-bruk-av-floatel-endurance-pa-martin-linge.pdf"},

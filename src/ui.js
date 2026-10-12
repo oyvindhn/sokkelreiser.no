@@ -224,7 +224,7 @@ function syncPlaces(){
     const auto=port?"base":nearPort.has(d.key)?"installation":d.guess;
     const kind=old?(old.kindEdited?old.kind:(port||nearPort.has(d.key)?auto:old.kind)):auto;
     const autoLabel=kind==="installation"?(d.nameHint||d.raw):d.raw;
-    next[d.key]=old?{...old,kind,link:kind==="base"?null:old.link,rows:d.rows,raw:d.raw,nameHint:d.nameHint,guess:d.guess,label:old.labelEdited?old.label:(kind==="installation"&&old.link&&old.link.type==="sodir"&&D.facById.get(old.link.id)?C.titleCase(D.facById.get(old.link.id).name):kind==="installation"&&old.link&&old.link.type==="flotel"?C.titleCase(old.link.name):kind==="installation"&&old.link&&old.link.type==="follow"?old.label:autoLabel)}
+    next[d.key]=old?{...old,kind,link:kind==="base"?null:old.link,rows:d.rows,raw:d.raw,nameHint:d.nameHint,guess:d.guess,label:old.labelEdited?old.label:(kind==="installation"&&old.link&&old.link.type==="sodir"&&old.link.label?old.link.label:kind==="installation"&&old.link&&old.link.type==="sodir"&&D.facById.get(old.link.id)?C.titleCase(D.facById.get(old.link.id).name):kind==="installation"&&old.link&&old.link.type==="flotel"?C.titleCase(old.link.name):kind==="installation"&&old.link&&old.link.type==="follow"?old.label:autoLabel)}
                    :{key:d.key,raw:d.raw,label:autoLabel,nameHint:d.nameHint,kind,guess:d.guess,link:null,auto:false,rows:d.rows};
   }
   for(const m of S.manual){if(S.places[m.key])next[m.key]={...S.places[m.key],manualOnly:!next[m.key]}}
@@ -312,7 +312,10 @@ function koderPayload(){
   const koder={};
   for(const p of Object.values(S.places)){
     if(!p.link||p.kind!=="installation")continue;
-    if(p.link.type==="sodir"){const f=D.facById.get(p.link.id);if(f)koder[p.raw]={navn:f.name,sodirId:f.id}}
+    if(p.link.type==="sodir"){const f=D.facById.get(p.link.id);if(!f)continue;const e={navn:f.name,sodirId:f.id};
+      if(p.link.label)e.visning=p.link.label;
+      if(p.link.periods)e.perioder=p.link.periods.map(q=>({...(q.fra?{fra:q.fra}:{}),...(q.til?{til:q.til}:{}),navn:(D.facById.get(q.id)||{}).name,sodirId:q.id,visning:q.label}));
+      koder[p.raw]=e}
     else if(p.link.type==="follow"){const o=S.places[p.link.key];if(!o)continue;
       const per=(p.link.periods||[]).map(q=>{const t=S.places[q.key];return t?{ved:t.raw,...(q.fra?{fra:q.fra}:{}),...(q.til?{til:q.til}:{})}:null}).filter(Boolean);
       koder[p.raw]={navn:p.label,ved:per.length?per:o.raw}}
@@ -329,6 +332,30 @@ function looseName(navn){
   hits.sort((a,b)=>(a.moveable-b.moveable)||((b.phase==="IN SERVICE")-(a.phase==="IN SERVICE"))||a.name.length-b.name.length);
   return hits[0]||null;
 }
+/* Navn fra kodelisten -> Sodir-innretning: dagens navn, tidligere navn (fra brønnregisteret), så løsere treff.
+   «MÆRSK INSPIRER» finner «INSPIRER», «DRAUPNER S» finner «DRAUPNER …» hvis Sodir skriver navnet annerledes. */
+function facilityByCodeName(navn,sodirId){
+  if(sodirId&&D.facById.get(String(sodirId)))return D.facById.get(String(sodirId));
+  const n=C.normName(navn||"");if(!n)return null;
+  let f=D.facilities.find(x=>C.normName(x.name)===n);if(f)return f;
+  for(const [id,names] of D.aliases||[])if(names.some(a=>C.normName(a)===n)&&D.facById.get(id))return D.facById.get(id);
+  f=looseName(n);if(f)return f;
+  const suf=D.facilities.filter(x=>C.isFlyable(x)).filter(x=>{const m=C.normName(x.name);return m.length>=5&&n.endsWith(" "+m)});
+  suf.sort((a,b)=>(a.moveable-b.moveable)||((b.phase==="IN SERVICE")-(a.phase==="IN SERVICE"))||b.name.length-a.name.length);
+  if(suf[0])return suf[0];
+  const w=n.split(" ");return w.length>1?looseName(w.slice(0,-1).join(" ")):null;
+}
+/* Kode med «perioder»: samme kode har vært ulike innretninger eller hatt ulike navn over tid. */
+function codeLink(e){
+  const per=(e.perioder||[]).map(q=>{const f=facilityByCodeName(q.navn||e.navn,q.sodirId);return f?{id:f.id,fra:q.fra||"",til:q.til||"",label:q.visning||C.titleCase(f.name)}:null}).filter(Boolean);
+  const main=facilityByCodeName(e.navn,e.sodirId)||(per.length?D.facById.get(per[per.length-1].id):null);
+  if(!main)return null;
+  const link={type:"sodir",id:main.id};if(e.visning)link.label=e.visning;
+  if(per.length)link.periods=per;
+  return link;
+}
+function periodAt(l,date){return (l.periods||[]).find(q=>(!q.fra||date>=q.fra)&&(!q.til||date<=q.til))||null}
+function linkIds(l){return l&&l.type==="sodir"?[l.id,...(l.periods||[]).map(q=>q.id)]:[]}
 /* «ved» kan være «SKV» eller en liste [{ved:"SKV",fra:"2019-05-01",til:"2019-09-30"}, …] for boligrigger som flytter. */
 function codeVed(e){const v=e&&e.ved;if(!v)return [];
   return (Array.isArray(v)?v:[{ved:v}]).map(x=>typeof x==="string"?{ved:x}:x).filter(x=>x&&x.ved).map(x=>({ved:x.ved,fra:x.fra||"",til:x.til||""}))}
@@ -346,7 +373,7 @@ function flotelOf(key){
 }
 function facilityFor(e){
   if(!D.facilities.length)return null;
-  const byN=n=>n&&(D.facilities.find(f=>C.normName(f.name)===C.normName(n))||looseName(n));
+  const byN=n=>n&&facilityByCodeName(n);
   let f=byN(e.inst);
   if(!f&&e.felt){const c=D.facilities.filter(f=>!f.moveable&&f.lat!=null&&C.normName(f.belongsTo||"")===C.normName(e.felt));
     c.sort((a,b)=>((b.phase==="IN SERVICE")-(a.phase==="IN SERVICE"))||a.name.length-b.name.length);f=c[0]||byN(e.felt)}
@@ -384,14 +411,19 @@ function flotelReports(){
 }
 function applyCodeList(){
   if(!D.facilities.length)return 0;let n=0;
-  const byName=new Map(D.facilities.map(f=>[C.normName(f.name),f]));
-  const todo=p=>p&&(!p.link||p.auto)&&!(p.kindEdited&&p.kind==="base");
+  // Kodelisten kan oppdateres: koblinger den selv har laget, legges på nytt. Det brukeren har valgt selv, røres ikke.
+  const todo=p=>p&&(!p.link||p.auto||p.byCode)&&!(p.kindEdited&&p.kind==="base");
   for(const k in CODES){   // 1. koblinger til Sodir
-    const p=S.places[C.placeKey(k)];if(!todo(p))continue;
+    const p=S.places[C.placeKey(k)];if(!p)continue;
     const e=CODES[k]||{};if(codeVed(e).length&&!e.sodirId)continue;
-    const f=(e.sodirId&&D.facById.get(String(e.sodirId)))||byName.get(C.normName(e.navn||""))||looseName(e.navn);
-    if(!f){if(FLOT.has(C.normName(e.navn||""))){p.link={type:"flotel",name:e.navn};p.auto=false;p.kind="installation";if(!p.labelEdited)p.label=C.titleCase(e.navn);n++}continue}
-    p.link={type:"sodir",id:f.id};p.auto=false;p.kind="installation";if(!p.labelEdited)p.label=C.titleCase(f.name);n++;
+    const link=codeLink(e);
+    // eldre lagrede koblinger fra kodelisten (før byCode fantes): oppgrader hvis de peker på samme innretning
+    const legacy=p.byCode===undefined&&p.link&&p.link.type==="sodir"&&!p.auto&&link&&linkIds(link).includes(p.link.id);
+    if(!todo(p)&&!legacy)continue;
+    if(!link){if(FLOT.has(C.normName(e.navn||""))){const was=JSON.stringify(p.link);p.link={type:"flotel",name:e.navn};p.auto=false;p.byCode=true;p.kind="installation";if(!p.labelEdited)p.label=C.titleCase(e.navn);if(was!==JSON.stringify(p.link))n++}continue}
+    const was=JSON.stringify(p.link);
+    p.link=link;p.auto=false;p.byCode=true;p.kind="installation";if(!p.labelEdited)p.label=link.label||C.titleCase(D.facById.get(link.id).name);
+    if(was!==JSON.stringify(link))n++;
   }
   for(const k in CODES){   // 2. «ligger ved»: boligrigg uten egen posisjon
     const p=S.places[C.placeKey(k)],e=CODES[k]||{},vs=codeVed(e);if(!vs.length||!todo(p))continue;
@@ -435,16 +467,17 @@ function fixedSite(f){
   const place=f.belongsTo?C.fieldWord(f.belongsTo)+(blk?" – "+blk:""):"";
   return {id:"F"+f.id,lat:f.lat,lon:f.lon,name:C.titleCase(f.name),place,sub:f.kind?C.titleCase(f.kind):"",kind:"fixed",facilityId:f.id,url:f.url}}
 /* Innretninger Sodir regner som faste, men som kan flyttes (f.eks. Mærsk Inspirer: Volve, så Yme). */
-const MOVABLE_KIND=/JACK|MOPU|SEMISUB|VESSEL|SHIP|DRILL/i,FLOATING_KIND=/FPSO|FSO|FPU/i;
+// NB: «JACK-UP», ikke «JACKET», som er faste stålplattformer
+const MOVABLE_KIND=/JACK-?UP|MOPU|SEMISUB|VESSEL|SHIP|DRILL/i,FLOATING_KIND=/FPSO|FSO|FPU/i;
 function hasHistory(f){return MOVABLE_KIND.test(f.kind)||FLOATING_KIND.test(f.kind)||!!(D.actRows&&D.actRows.has(f.id))}
 async function prefetchForStays(stays){
   const ids=new Set();
-  const want=(key,depth=0)=>{const p=S.places[key];if(!p||!p.link||depth>3)return;if(p.link.type==="sodir"){const f=D.facById.get(p.link.id);if(f&&(f.moveable||hasHistory(f)))ids.add(f.id)}if(p.link.type==="follow"){want(p.link.key,depth+1);for(const q of p.link.periods||[])want(q.key,depth+1)}};
+  const want=(key,depth=0)=>{const p=S.places[key];if(!p||!p.link||depth>3)return;if(p.link.type==="sodir"){for(const id of linkIds(p.link)){const f=D.facById.get(id);if(f&&(f.moveable||hasHistory(f)))ids.add(f.id)}}if(p.link.type==="follow"){want(p.link.key,depth+1);for(const q of p.link.periods||[])want(q.key,depth+1)}};
   for(const s of stays)want(s.key);
-  const fields=new Set();for(const p of Object.values(S.places))if(p.link&&p.link.type==="sodir"){const f=D.facById.get(p.link.id);if(f&&!f.moveable&&f.belongsTo)fields.add(f.belongsTo)}
+  const fields=new Set();for(const p of Object.values(S.places))for(const id of linkIds(p.link)){const f=D.facById.get(id);if(f&&!f.moveable&&f.belongsTo)fields.add(f.belongsTo)}
   await Promise.all([...[...ids].map(id=>timelineFor(id)),...[...fields].map(fieldBlock)]);
 }
-function resolveStay(stay,key=stay.key,depth=0){
+function resolveStay(stay,key=stay.key,depth=0,facId){
   const ov=S.overrides[stay.id];
   if(ov&&depth===0)return [{site:{id:"O:"+stay.id,lat:ov.lat,lon:ov.lon,name:ov.label||labelOf(stay.key),kind:"manual"},start:stay.start,end:stay.end,conf:"manuell",note:"Posisjon satt manuelt for denne turen."}];
   if(depth===0&&!(S.places[key]&&S.places[key].link&&S.places[key].link.type==="follow")){const fl=flotelOf(key);if(fl){const r=resolveFlotel(stay,key,fl);if(r)return r}}
@@ -460,7 +493,12 @@ function resolveStay(stay,key=stay.key,depth=0){
     if(!tk)return [{site:null,start:stay.start,end:stay.end,conf:"ukjent",note:"Ingen kjent plassering for denne boligriggen på denne datoen."}];
     return resolveStay(stay,tk,depth+1).map(s=>({...s,note:`Lå ved ${labelOf(tk)}. `+s.note}));
   }
-  const f=D.facById.get(l.id);
+  if(!facId&&l.periods&&l.periods.length){
+    // samme kode, ulike innretninger eller navn over tid (f.eks. Mærsk Inspirer på Volve, senere Yme Inspirer)
+    const per=periodAt(l,stay.start);
+    if(per)return resolveStay(stay,key,depth,per.id).map(g=>g.site?{...g,thenName:per.label,site:g.site.kind==='fixed'&&per.label?{...g.site,name:per.label}:g.site}:g);
+  }
+  const f=D.facById.get(facId||l.id);
   if(!f)return [{site:null,start:stay.start,end:stay.end,conf:"ukjent",note:D.status==="err"?"Sodir-data er ikke tilgjengelig.":"Laster Sodir-data …"}];
   if(f.moveable){
     const tl=D.timelines.get(f.id);
@@ -485,7 +523,10 @@ function resolveStay(stay,key=stay.key,depth=0){
     const v=prev||next;
     if(v){const site=tl.siteById[v.site],far=f.lat!=null&&C.haversineKm([site.lat,site.lon],[f.lat,f.lon])>5;
       if(far||!prev)return [{site:{...site,facilityName:f.name,url:f.url},start:stay.start,end:stay.end,conf:prev?"trolig":"usikker",thenName,
-        note:prev?`Innretningen boret sist her (${v.start.slice(0,4)}–${v.end.slice(0,4)}) og lå trolig her fortsatt. I dag ligger den et annet sted.`:`Første kjente brønn fra innretningen ble boret her i ${v.start.slice(0,4)}.`}]}
+        note:prev?`Innretningen boret sist her (${v.start.slice(0,4)}–${v.end.slice(0,4)}) og lå trolig her fortsatt. I dag ligger den et annet sted.`:`Første kjente brønn fra innretningen ble boret her i ${v.start.slice(0,4)}.`}];
+      // boret her før turen og ligger her fortsatt i dag: har ikke flyttet seg i mellomtiden
+      if(f.lat!=null)return [{site:{...fixedSite(f),facilityName:f.name},start:stay.start,end:stay.end,conf:"sikker",thenName,
+        note:`Innretningen har ligget her siden den boret her i ${v.start.slice(0,4)}, og ligger her fortsatt.`}]}
   }
   if(f.lat==null)return [{site:null,start:stay.start,end:stay.end,conf:"ukjent",note:"Sodir har ingen posisjon for denne innretningen."}];
   if(MOVABLE_KIND.test(f.kind))return [{site:fixedSite(f),start:stay.start,end:stay.end,conf:"usikker",note:"Dagens posisjon. Innretningen kan flyttes, og Sodir har ingen brønner som viser hvor den lå da."}];
@@ -896,7 +937,7 @@ function stayRow(s){
   const title=p?p.label:s.key;
   // egen fast installasjon: ingenting (navnet står som tittel). Lå ved en annen (boligrigg): «Skarvfeltet – 6507/5».
   const own=p&&p.link&&p.link.type==="sodir"?p.link.id:null;
-  const where=segs.some(g=>g.site)?segs.filter(g=>g.site).map(g=>g.site.kind==="fixed"?(g.site.facilityId===own?"":g.site.place||g.site.name):[g.site.name,g.site.operatorShort].filter(Boolean).join(" • ")).filter((x,i,a)=>x&&C.normName(x)!==C.normName(title)&&a.indexOf(x)===i).join(" → "):"Posisjon ukjent";
+  const where=segs.some(g=>g.site)?segs.filter(g=>g.site).map(g=>g.flotel?"ved "+g.site.name:g.site.kind==="fixed"?(g.site.facilityId===own?"":g.site.place||g.site.name):[g.site.name,g.site.operatorShort].filter(Boolean).join(" • ")).filter((x,i,a)=>x&&C.normName(x)!==C.normName(title)&&a.indexOf(x)===i).join(" → "):"Posisjon ukjent";
   const conf=segs.reduce((w,g)=>{const r={ukjent:0,usikker:1,trolig:2,manuell:3,sikker:4};return r[g.conf]<r[w]?g.conf:w},"sikker");
   if(s.turnback){const l=s.legs[0];
     return `<div class="stay turnback${sel?" sel":""}" role="button" tabindex="0" data-stay="${h(s.id)}" aria-expanded="${sel}">
@@ -920,7 +961,7 @@ function stayDetail(s){
       const st=g.site;
       html+=`<dl>
         <dt>Lokasjon</dt><dd><b>${h(st.name)}</b> ${pill(g.conf)}</dd>
-        ${g.thenName&&C.normName(g.thenName)!==C.normName(st.facilityName||"")?`<dt>Het da</dt><dd>${h(C.titleCase(g.thenName))} <span class="muted">(nå ${h(C.titleCase(st.facilityName))})</span></dd>`:""}
+        ${g.thenName&&C.normName(g.thenName)!==C.normName(st.facilityName||"")&&C.normName(g.thenName)!==C.normName(labelOf(s.key))?`<dt>Het da</dt><dd>${h(C.titleCase(g.thenName))} <span class="muted">(nå ${h(labelOf(s.key))})</span></dd>`:""}
         ${st.discovery?`<dt>Funn</dt><dd>${h(C.titleCase(st.discovery))}</dd>`:""}
         ${st.aliases&&st.aliases.length?`<dt>Alias hos Sodir</dt><dd>${st.aliases.map(x=>h(C.titleCase(x))).join(", ")}</dd>`:""}
         ${st.prospect?`<dt>Prospekt</dt><dd>${h(C.titleCase(st.prospect))}${st.prospectText?`<div class="small muted">Fra Sodirs brønnhistorikk: «${h(st.prospectText)}»</div>`:""}</dd>`:""}
@@ -1107,7 +1148,7 @@ function placeEditor(p){
   </div>`;
 }
 function linkPlace(key,link,label){
-  const p=S.places[key];if(!p)return;p.link=link;p.auto=false;p.kind="installation";if(label&&!p.labelEdited)p.label=label;
+  const p=S.places[key];if(!p)return;p.link=link;p.auto=false;p.byCode=false;p.kind="installation";if(label&&!p.labelEdited)p.label=label;
   persist();toast(`${p.label} er koblet.`);recompute();
 }
 
@@ -1374,7 +1415,7 @@ document.addEventListener("click",async e=>{
       if(!window.open(url,"_blank","noopener"))copyText(JSON.stringify(k,null,2));
     });
   }
-  else if(act==="sodir"){const ok=await loadFacilities(true);if(ok){await Promise.all([loadAliases(true),loadActivity(true)]);autoLink();persist();await recompute();toast("Sodir-data er oppdatert.")}else toast("Fikk ikke kontakt med Sodir.")}
+  else if(act==="sodir"){const ok=await loadFacilities(true);if(ok){await Promise.all([loadAliases(true),loadActivity(true)]);applyCodeList();autoLink();persist();await recompute();toast("Sodir-data er oppdatert.")}else toast("Fikk ikke kontakt med Sodir.")}
   else if(act==="clear")confirmDialog("Slette alle data?","Reiseloggen, koblingene og lagret Sodir-data fjernes fra denne nettleseren. Lagre en prosjektfil først hvis du vil beholde arbeidet.","Slett alt",()=>{for(const k of store.keys())store.del(k);location.reload()});
   else if(act==="openrig")openRig(b.dataset.id,b.dataset.date);
   else if(act==="pickstay")startPick("stay",b.dataset.id,"Klikk der du var på denne turen");
@@ -1474,6 +1515,7 @@ if(document.fonts&&document.fonts.ready)document.fonts.ready.then(themeObs);
   await loadCodeList();
   if(applyCodeList())persist();
   if(D.facilities.length)await Promise.all([loadAliases(false),loadActivity(false)]);
+  if(applyCodeList())persist();   // på nytt: tidligere navn fra Sodir er lastet nå
   if(autoLink())persist();
   await recompute();
   if(STAYS.length)fitToContent();
