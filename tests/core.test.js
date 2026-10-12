@@ -232,3 +232,14 @@ test("operatør kortes ned uten å miste identiteten", () => {
     assert.equal(C.shortOperator(a), b, a);
 });
 
+
+test("alias og pressemelding hentes fra Sodir, men brukes ikke som navn", () => {
+  const w = (o) => C.normWellbore({ wlbWellboreName: "9/9-1", wlbWell: "9/9-1", wlbEntryDate: Date.parse("2016-01-01"), wlbCompletionDate: Date.parse("2016-03-01"), wlbNsDecDeg: 59.8, wlbEwDecDeg: 2.6, fclNpdidFacilityDrilling: 5, ...o });
+  const a = C.rigTimeline("5", [w({ wlbAliasName: "Testprospekt", wlbPressReleaseUrl: "https://example.org/pm" })]).sites[0];
+  assert.deepEqual(a.aliases, ["Testprospekt"]);
+  assert.equal(a.press, "https://example.org/pm");
+  assert.equal(a.name, "9/9-1", "alias endrer ikke navnet");
+  const b = C.rigTimeline("5", [w({ wlbAliasName: "9/9-1 S", wlbPressReleaseUrl: " " })]).sites[0];
+  assert.deepEqual(b.aliases, [], "brønnbetegnelser er ikke alias");
+  assert.equal(b.press, "");
+});

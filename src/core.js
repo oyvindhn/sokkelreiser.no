@@ -398,7 +398,7 @@ function normWellbore(a,geom){
   return {name:clean(a.wlbWellboreName),well:clean(a.wlbWell),entry:parseDate(a.wlbEntryDate),comp:parseDate(a.wlbCompletionDate),
     field:clean(a.wlbField),discovery:clean(a.wlbDiscovery),purpose:clean(a.wlbPurpose),type:clean(a.wlbWellType),status:clean(a.wlbStatus),
     content:clean(a.wlbContent),depth:a.wlbWaterDepth!=null&&a.wlbWaterDepth!==""?+a.wlbWaterDepth:null,area:clean(a.wlbMainArea),url:clean(a.wlbFactPageUrl),
-    licence:clean(a.wlbProductionLicence),operator:clean(a.wlbDrillingOperator),
+    licence:clean(a.wlbProductionLicence),operator:clean(a.wlbDrillingOperator),alias:clean(a.wlbAliasName),press:clean(a.wlbPressReleaseUrl),
     facility:clean(a.wlbDrillingFacility),facilityId:a.fclNpdidFacilityDrilling!=null&&a.fclNpdidFacilityDrilling!==""?String(a.fclNpdidFacilityDrilling):"name:"+normName(a.wlbDrillingFacility),
     moveable:/MOV/i.test(a.wlbDrillingFacilityFixedOrMove||""),facilityKind:clean(a.wlbFacilityTypeDrilling),
     lat:pos?+pos[0].toFixed(5):null,lon:pos?+pos[1].toFixed(5):null};
@@ -442,6 +442,10 @@ function rigTimeline(facId,wellbores){
     s.place=titleCase(dn||s.field||"");
     s.name=[s.well,s.place].filter(Boolean).join(" ");
     s.operatorShort=shortOperator(s.operator);
+    // Alias og pressemelding vises som de står hos Sodir. De brukes ikke til å lage navn (kan være prospektnavn, men er ikke garantert).
+    const norm=x=>normName(x||"");const seen=new Set([norm(s.well),norm(s.place),norm(s.field)]);
+    s.aliases=[];for(const w of s.wells){const al=w.alias;if(al&&!seen.has(norm(al))&&!/^\d+\/\d+-/.test(al)){seen.add(norm(al));s.aliases.push(al)}}
+    s.press=(s.wells.find(w=>/^https?:\/\//.test(w.press||""))||{}).press||"";
     s.sub=pl;
     s.depth=s.wells.find(w=>w.depth!=null)?.depth??null;
     s.area=by("area");

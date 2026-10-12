@@ -733,7 +733,8 @@ function stayDetail(s){
         <dt>Lokasjon</dt><dd><b>${h(st.name)}</b> ${pill(g.conf)}</dd>
         ${g.thenName&&C.normName(g.thenName)!==C.normName(st.facilityName||"")?`<dt>Het da</dt><dd>${h(C.titleCase(g.thenName))} <span class="muted">(nå ${h(C.titleCase(st.facilityName))})</span></dd>`:""}
         ${st.discovery?`<dt>Funn</dt><dd>${h(C.titleCase(st.discovery))}</dd>`:""}
-        ${st.licence?`<dt>Lisens</dt><dd>PL ${h(st.licence.replace(/^PL\s*/i,""))}${st.operator?` · ${h(C.titleCase(st.operator))}`:""}</dd>`:""}
+        ${st.aliases&&st.aliases.length?`<dt>Alias hos Sodir</dt><dd>${st.aliases.map(x=>h(C.titleCase(x))).join(", ")}</dd>`:""}
+        ${st.licence?`<dt>Lisens</dt><dd>PL ${h(st.licence.replace(/^PL\s*/i,""))}${st.operator?` · ${h(st.operator)}`:""}</dd>`:""}
         ${st.kind==="mobile"?`<dt>Brønn</dt><dd class="mono">${h((g.visit?g.visit.wells:st.wells).map(w=>w.name).slice(0,6).join(", "))}${(g.visit?g.visit.wells:st.wells).length>6?" …":""}</dd>`:""}
         ${st.kind==="mobile"&&st.area?`<dt>Område</dt><dd>${h(C.titleCase(st.area))}</dd>`:""}
         ${st.depth!=null?`<dt>Havdyp</dt><dd class="mono">${st.depth} m</dd>`:""}
@@ -743,6 +744,7 @@ function stayDetail(s){
     html+=`<div class="note">${h(g.note||"")}</div>`;
     const links=[];
     if(g.site&&g.site.kind==="mobile"){const w=(g.visit?g.visit.wells:g.site.wells)[0];if(w&&w.url)links.push(`<a href="${h(w.url)}" target="_blank" rel="noopener">Brønnen hos Sodir ↗</a>`)}
+    if(g.site&&g.site.press)links.push(`<a href="${h(g.site.press)}" target="_blank" rel="noopener">Pressemelding fra Sodir ↗</a>`);
     if(g.site&&g.site.url)links.push(`<a href="${h(g.site.url)}" target="_blank" rel="noopener">Innretningen hos Sodir ↗</a>`);
     if(links.length)html+=`<div class="row small">${links.join(" · ")}</div>`;
     html+=`</div>`;
