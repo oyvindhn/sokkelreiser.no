@@ -1496,7 +1496,16 @@ chart.cb.click=(m,geo)=>{
   if(st){if(S.ui.tab!=="stays")switchTab("stays");S.ui.sel=null;selectStay(st.id)}
 };
 const themeObs=()=>{chart.col=null;chart.req()};
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change",themeObs);
+/* Utseende: auto (følger systemet), lys eller mørk. Huskes i nettleseren. */
+function applyTheme(t){
+  if(t!=="light"&&t!=="dark")t="auto";
+  if(t==="auto")document.documentElement.removeAttribute("data-theme");else document.documentElement.setAttribute("data-theme",t);
+  for(const b of document.querySelectorAll("[data-theme-set]"))b.setAttribute("aria-checked",String(b.dataset.themeSet===t));
+  const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=getComputedStyle(document.body).backgroundColor;
+}
+applyTheme(store.get("theme","auto"));
+for(const b of document.querySelectorAll("[data-theme-set]"))b.addEventListener("click",()=>{store.set("theme",b.dataset.themeSet);applyTheme(b.dataset.themeSet)});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>{themeObs();applyTheme(store.get("theme","auto"))});
 new MutationObserver(themeObs).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme","class"]});
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(themeObs);
 
