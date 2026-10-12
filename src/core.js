@@ -433,13 +433,13 @@ function discoveryName(d){
   while(t.length>1&&(/^\d+\/\d+-[\w\/-]+$/.test(t[0])||/^(S|A|B|R|T|ST\d*|SR|AT\d*|[A-Z]\d?)$/.test(t[0])))t.shift();
   const n=t.join(" ");return /^\d+\/\d+-/.test(n)?"":n;
 }
-/* Prospektnavn fra Sodirs brønnhistorikk (fritekst). Bare svært tydelige formuleringer: «the Clapton prospect», «prospect named X», «Clapton-prospektet».
+/* Prospektnavn fra Sodirs brønnhistorikk (fritekst, ofte med HTML). Bare svært tydelige formuleringer: «the Clapton Prospect», «prospect named X», «Clapton-prospektet».
    Returnerer {name,sentence} eller null. Gjetter aldri. */
 const NOT_NAME=/^(the|this|that|these|those|a|an|upper|lower|middle|late|early|central|northern|southern|eastern|western|north|south|east|west|main|deep|deeper|shallow|shallower|primary|secondary|same|other|first|second|third|drilled|new|old|jurassic|triassic|cretaceous|paleocene|eocene|permian|carboniferous|devonian|rotliegend|zechstein|chalk|sandstone|reservoir|exploration|wildcat|appraisal|oil|gas|licence|license|norwegian|north-sea)$/i;
 function prospectFromHistory(text){
-  const t=String(text||"").replace(/\s+/g," ");if(!t)return null;
+  const t=String(text||"").replace(/<[^>]*>/g," ").replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&#39;|&rsquo;/g,"'").replace(/\s+/g," ").trim();if(!t)return null;
   const W="[A-ZÆØÅ][A-Za-zÆØÅæøå0-9'\\-]*";
-  const pats=[new RegExp("\\b[Tt]he ("+W+"(?: "+W+")?) prospect\\b"),new RegExp("\\bprospect(?:ed)? (?:named|called|known as) ("+W+"(?: "+W+")?)"),new RegExp("\\b("+W+")[- ]prospektet\\b"),new RegExp("\\bprospektet ("+W+")")];
+  const pats=[new RegExp("\\b[Tt]he ("+W+"(?: "+W+")?) [Pp]rospect\\b"),new RegExp("\\b[Pp]rospect(?:ed)? (?:named|called|known as) ("+W+"(?: "+W+")?)"),new RegExp("\\b("+W+")[- ]prospektet\\b"),new RegExp("\\bprospektet ("+W+")")];
   for(const re of pats){
     const m=re.exec(t);if(!m)continue;
     const words=m[1].split(" ").filter(w=>!NOT_NAME.test(w));

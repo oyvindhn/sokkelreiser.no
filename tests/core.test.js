@@ -253,6 +253,10 @@ test("prospektnavn fra brønnhistorikk: bare tydelige formuleringer", () => {
   assert.equal(n("The well was drilled on the Upper Jurassic prospect."), null, "geologi er ikke et navn");
   assert.equal(n("The main objective was to prove petroleum in the Brent Group."), null);
   assert.equal(n(""), null);
+  // slik Sodir faktisk skriver det: stor P og HTML rundt
+  assert.equal(n("<p><b>General</b></p><p>The 2/8-18 S well was drilled on the Clapton Prospect in the Feda Graben.</p>"), "Clapton");
+  assert.equal(n("Wildcat well 9/9-2 was drilled to test the Myrhauk Prospect&nbsp;in the North Sea."), "Myrhauk");
+  assert.equal(n("The Prospect was dry."), null, "«The Prospect» alene er ikke et navn");
 });
 
 test("lokasjonsnavn: prospekt fra historikken går foran funn og felt", () => {

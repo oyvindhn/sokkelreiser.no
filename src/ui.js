@@ -36,6 +36,8 @@ function persist(){
 
 /* ================= Sodir data ================= */
 const SODIR="https://factmaps.sodir.no/api/rest/services/DataService/Data/FeatureServer/";
+/* Brønnhistorikken (tabell 5050) svarer bare via MapServer; FeatureServer gir «Unable to perform query operation». */
+const SODIR_MAP="https://factmaps.sodir.no/api/rest/services/DataService/Data/MapServer/";
 const FAC_FIELDS="fclNpdidFacility,fclName,fclKind,fclFixedOrMoveable,fclPhase,fclFunctions,fclBelongsToName,fclCurrentOperatorName,fclCurrentRespCompanyName,fclFactPageUrl";
 const WB_FIELDS="wlbWellboreName,wlbWell,wlbEntryDate,wlbCompletionDate,wlbField,wlbDiscovery,wlbPurpose,wlbWellType,wlbStatus,wlbContent,wlbWaterDepth,wlbMainArea,wlbFactPageUrl,wlbDrillingFacility,fclNpdidFacilityDrilling,wlbDrillingFacilityFixedOrMove,wlbFacilityTypeDrilling,wlbNsDecDeg,wlbEwDecDeg";
 const CACHE_DAYS=14;
@@ -51,10 +53,10 @@ const D={
   idf:null,
   pending:new Map(),
 };
-async function arcQuery(layer,params){
+async function arcQuery(layer,params,base=SODIR){
   const all=[];let offset=0;
   for(let guard=0;guard<40;guard++){
-    const u=new URL(SODIR+layer+"/query");
+    const u=new URL(base+layer+"/query");
     const p={f:"json",outSR:"4326",resultOffset:offset,resultRecordCount:2000,...params};
     for(const k in p)u.searchParams.set(k,p[k]);
     const r=await fetch(u.toString(),{mode:"cors"});
@@ -133,7 +135,8 @@ async function loadProspects(sites){
     const ids=[...todo.keys()];
     for(let i=0;i<ids.length;i+=40){
       const part=ids.slice(i,i+40);
-      const feats=await arcQuery(5050,{where:`wlbNpdidWellbore IN (${part.join(",")})`,outFields:"wlbNpdidWellbore,wlbHistory",returnGeometry:"false"});
+      const q={where:`wlbNpdidWellbore IN (${part.join(",")})`,outFields:"wlbNpdidWellbore,wlbHistory",returnGeometry:"false"};
+      const feats=await arcQuery(5050,q,SODIR_MAP).catch(()=>arcQuery(5050,q));
       const got=new Map();for(const f of feats){const a=f.attributes||{};got.set(String(a.wlbNpdidWellbore),C.prospectFromHistory(a.wlbHistory))}
       for(const id of part){
         const r=got.get(id)||null;
