@@ -232,6 +232,7 @@ function candidates(place,limit=6){
   const q=[place.nameHint,place.label,place.raw].filter(Boolean);
   const res=[];
   for(const f of D.facilities){
+    if(!C.isFlyable(f))continue;   // ingen helidekk å lande på: kan aldri ha vært et reisemål
     let sc=0,via="";
     for(const nm of namesOf(f)){
       let s2=0;for(const s of q)s2=Math.max(s2,C.nameScore(s,nm),C.idfScore(s,nm,D.idf));
@@ -321,7 +322,7 @@ async function loadCodeList(){try{const r=await fetch("koder.json",{cache:"no-ca
 /* «SKARV» i kodelisten skal treffe «SKARV FPSO» hos Sodir. Faste og i drift foretrekkes. */
 function looseName(navn){
   const n=C.normName(navn||"");if(!n)return null;
-  const hits=D.facilities.filter(f=>{const m=C.normName(f.name);return m.startsWith(n+" ")||m.endsWith(" "+n)});
+  const hits=D.facilities.filter(f=>C.isFlyable(f)).filter(f=>{const m=C.normName(f.name);return m.startsWith(n+" ")||m.endsWith(" "+n)});
   hits.sort((a,b)=>(a.moveable-b.moveable)||((b.phase==="IN SERVICE")-(a.phase==="IN SERVICE"))||a.name.length-b.name.length);
   return hits[0]||null;
 }

@@ -400,6 +400,14 @@ function normFacility(a,geom){
     functions:clean(a.fclFunctions),belongsTo:clean(a.fclBelongsToName),operator:clean(a.fclCurrentOperatorName||a.fclCurrentRespCompanyName),
     url:clean(a.fclFactPageUrl),lat:pos?+pos[0].toFixed(5):null,lon:pos?+pos[1].toFixed(5):null};
 }
+/* Sodir har ikke helidekk som felt. Fast overflateinstallasjon regnes som mulig mål. Flyttbare må være rigg/flyter eller ha
+   boring, boligfunksjon eller flotell. Rene fartøy (forsyning, ankerhåndtering, intervensjon) uten slike funksjoner faller ut. */
+function isFlyable(f){
+  if(!f)return false;
+  if(!f.moveable)return true;
+  if(/SEMI|JACK|FPSO|FSU|FPU|MOPU|DRILL|TLP/i.test(f.kind||""))return true;
+  return /DRILL|ACCOMM|FLOTEL|QUARTER|PRODUC|PROCESS/i.test(f.functions||"");
+}
 function normWellbore(a,geom){
   const pos=geoOf(a,geom);
   return {npdid:a.wlbNpdidWellbore!=null&&a.wlbNpdidWellbore!==""?String(a.wlbNpdidWellbore):"",name:clean(a.wlbWellboreName),well:clean(a.wlbWell),entry:parseDate(a.wlbEntryDate),comp:parseDate(a.wlbCompletionDate),
@@ -640,7 +648,7 @@ function toCSV(rows,delim=";"){
   return rows.map(r=>r.map(v=>{v=v==null?"":String(v);return /[";\n,\t]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(delim)).join("\r\n");
 }
 
-const api={SHELF_BASES,reachable,flotelPeriods,flotelCandidates,DAY,pad,isoFromDate,toDay,fromDay,addDays,diffDays,todayIso,parseDate,fmtDate,clean,normName,tokens,nameScore,parseCSV,readXlsx,
+const api={isFlyable,SHELF_BASES,reachable,flotelPeriods,flotelCandidates,DAY,pad,isoFromDate,toDay,fromDay,addDays,diffDays,todayIso,parseDate,fmtDate,clean,normName,tokens,nameScore,parseCSV,readXlsx,
   FIELDS,findHeaderRow,guessColumns,analyseTables,buildLegs,placeKey,derivePlaces,buildStays,normFacility,normWellbore,rowsToObjects,
   buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,nameAt,fieldWord,discoveryName,shortOperator,prospectFromHistory,nameSite,titleCase,toCSV,isSodirWellbore,isSodirFacility,
   activityByFacility,dateFit,neighbours,pickAuto,heliport,flightHints,flightFit};

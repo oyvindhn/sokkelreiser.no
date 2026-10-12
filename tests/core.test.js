@@ -331,3 +331,12 @@ test("flotellperioder: åpne perioder varer til neste oppdrag", () => {
   const pos = (e) => (e.felt === "SKARV" ? [65.7, 7.6] : [59.25, 2.37]);
   assert.deepEqual(C.flotelCandidates(E, "2024-06-01", ["BNN"], pos).map((e) => e.felt), ["SKARV"]);
 });
+
+test("fartøy uten rigg- eller boligfunksjon er ikke mulige reisemål", () => {
+  assert.equal(C.isFlyable({ moveable: false, kind: "FIXED JACKET", functions: "" }), true);
+  assert.equal(C.isFlyable({ moveable: true, kind: "SEMISUB STEEL", functions: "DRILLING" }), true);
+  assert.equal(C.isFlyable({ moveable: true, kind: "SEMISUB STEEL", functions: "ACCOMMODATION" }), true);
+  assert.equal(C.isFlyable({ moveable: true, kind: "VESSEL", functions: "ACCOMMODATION" }), true);
+  assert.equal(C.isFlyable({ moveable: true, kind: "VESSEL", functions: "SUPPORT" }), false);
+  assert.equal(C.isFlyable({ moveable: true, kind: "VESSEL", functions: "" }), false);
+});
