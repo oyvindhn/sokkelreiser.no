@@ -1,5 +1,6 @@
 <div class="app">
-  <aside class="panel" aria-label="Logg">
+  <aside class="panel" aria-label="Logg" id="panel">
+    <div class="grip" id="grip" role="button" tabindex="-1" aria-label="Dra for å vise mer eller mindre"><i></i></div>
     <header class="brand">
       <div>
         <h1>Sokkel<b>reiser</b></h1>
@@ -37,6 +38,7 @@
     <section class="view" id="view-stays" role="tabpanel"></section>
     <section class="view" id="view-rig" role="tabpanel" hidden></section>
     <section class="view" id="view-places" role="tabpanel" hidden></section>
+    <section class="mdet" id="mdet" hidden aria-live="polite"></section>
   </aside>
 
   <main class="chart" aria-label="Kart">
@@ -54,6 +56,7 @@
       <button type="button" id="zin" aria-label="Zoom inn">+</button>
       <button type="button" id="zout" aria-label="Zoom ut">−</button>
       <button type="button" id="zfit" aria-label="Vis alt" style="font-size:13px">⤢</button>
+      <button type="button" id="zlayers" class="m-only" aria-label="Kartlag og tegnforklaring" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2 14 5.2 8 8.4 2 5.2Z M2 8.2l6 3.2 6-3.2M2 11l6 3.2 6-3.2" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></button>
     </div>
     <div class="ov readout mono" id="readout"></div>
     <div class="ov source" id="source"><i></i><span id="sourceText">Sodir: ikke lastet</span></div>

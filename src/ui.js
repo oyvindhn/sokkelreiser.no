@@ -614,7 +614,7 @@ class Chart{
       }
       if(m.sel){ctx.beginPath();ctx.arc(x,y,r+5,0,Math.PI*2);ctx.lineWidth=2;ctx.strokeStyle=col.ink;ctx.stroke()}
       ctx.globalAlpha=1;
-      this.hits.push({x,y,r:r+4,m});
+      this.hits.push({x,y,r:r+HIT_PAD,m});
     }
     // etiketter: kort kode (MGU, NIT) som standard; full tekst ved hover, på valgt punkt eller når «Fulle navn» er på
     const boxes=[];ctx.textBaseline="middle";const portFont=`500 10.5px ${col.mono}`,instFont=`600 11.5px ${col.body}`,tagFont=`600 11px ${col.mono}`;
@@ -648,10 +648,12 @@ class Chart{
   fit(pts,maxZ=8.5){
     if(!pts.length)return;
     let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;for(const [la,lo] of pts){const x=wx(lo),y=wy(la);x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y)}
-    const pad=90,zw=Math.log2((this.W-pad*2)/Math.max(1e-6,x1-x0)),zh=Math.log2((this.H-pad*2)/Math.max(1e-6,y1-y0));
-    this.animateTo((x0+x1)/2,(y0+y1)/2,Math.max(2,Math.min(maxZ,zw,zh)));
+    const inset=this.inset||0,pad=this.W<600?48:90,zw=Math.log2((this.W-pad*2)/Math.max(1e-6,x1-x0)),zh=Math.log2((this.H-inset-pad*2)/Math.max(1e-6,y1-y0));
+    const z=Math.max(2,Math.min(maxZ,zw,zh));
+    this.animateTo((x0+x1)/2,(y0+y1)/2+inset/2/Math.pow(2,z),z);
   }
-  flyTo(lat,lon,z){this.animateTo(wx(lon),wy(lat),z??Math.max(this.z,7))}
+  /* inset: hvor mange piksler nederst som dekkes av bunnarket på mobil. Punktet havner midt i det synlige kartet. */
+  flyTo(lat,lon,z){z=z??Math.max(this.z,7);this.animateTo(wx(lon),wy(lat)+(this.inset||0)/2/Math.pow(2,z),z)}
   bind(){
     const c=this.c;let moved=false,last=null,pinch=null;
     c.addEventListener("pointerdown",e=>{c.setPointerCapture(e.pointerId);this.pointers.set(e.pointerId,[e.offsetX,e.offsetY]);moved=false;last=[e.offsetX,e.offsetY];
@@ -672,6 +674,8 @@ class Chart{
     c.addEventListener("dblclick",e=>{e.preventDefault();this.zoomAt(2,e.offsetX,e.offsetY)});
   }
 }
+
+const HIT_PAD=matchMedia("(pointer:coarse)").matches?14:4;   // fingre trenger større treffflate enn mus
 
 /* ================= map content ================= */
 let chart;
@@ -873,7 +877,8 @@ function renderStays(){
   }
   v.innerHTML=html;
   v.querySelectorAll(".hist .bar").forEach(b=>b.addEventListener("click",()=>{const yy=+b.dataset.year;S.ui.year=S.ui.year===yy?null:yy;S.ui.sel=null;renderStays();updateMap();fitToContent()}));
-  const sel=v.querySelector(".stay.sel");if(sel&&renderStays.scroll){sel.scrollIntoView({block:"nearest"});renderStays.scroll=false}
+  const sel=v.querySelector(".stay.sel");if(sel&&renderStays.scroll&&!isMobile()){sel.scrollIntoView({block:"nearest"});renderStays.scroll=false}
+  renderMDetail();
 }
 /* Navnet installasjonen hadde da du var der, med dagens navn i parentes. */
 function instTitle(s,p){
@@ -1006,7 +1011,7 @@ async function openRig(facId,date){
   const tl=fac.moveable||hasHistory(fac)?await timelineFor(facId):null;
   if(!RIG||RIG.fac.id!==facId)return;
   RIG.tl=tl;RIG.loading=false;renderRig();updateMap();
-  const ans=rigAnswer();if(ans&&ans.site){S.ui.rigSel=ans.site.id;renderRig();updateMap();chart.flyTo(ans.site.lat,ans.site.lon,7.2)}else fitToContent();
+  const ans=rigAnswer();if(ans&&ans.site){S.ui.rigSel=ans.site.id;renderRig();updateMap();revealMap();chart.flyTo(ans.site.lat,ans.site.lon,7.2)}else fitToContent();
 }
 function rigAnswer(){
   if(!RIG||!RIG.tl||!S.ui.rigDate)return null;
@@ -1042,8 +1047,8 @@ function renderRig(){
   }else html+=`<p class="small muted" style="margin:0">Sodir registrerer hvilken innretning som boret hver brønn på norsk sokkel, med datoer og posisjon. Det gjør det mulig å følge en flyttbar rigg bakover i tid.</p>`;
   v.innerHTML=html;
   facilitySuggest($("rigq"),{onPick:f=>openRig(f.id),boost:f=>f.moveable?.05:0});
-  const di=$("rigdate");if(di)di.addEventListener("change",()=>{S.ui.rigDate=di.value;const a=rigAnswer();S.ui.rigSel=a&&a.site?a.site.id:null;renderRig();updateMap();if(a&&a.site)chart.flyTo(a.site.lat,a.site.lon,7.2)});
-  v.querySelectorAll(".visit").forEach(b=>b.addEventListener("click",()=>{const s=RIG.tl.siteById[b.dataset.site];S.ui.rigSel=s.id;renderRig();updateMap();chart.flyTo(s.lat,s.lon,Math.max(chart.z,7))}));
+  const di=$("rigdate");if(di)di.addEventListener("change",()=>{S.ui.rigDate=di.value;const a=rigAnswer();S.ui.rigSel=a&&a.site?a.site.id:null;renderRig();updateMap();if(a&&a.site){revealMap();chart.flyTo(a.site.lat,a.site.lon,7.2)}});
+  v.querySelectorAll(".visit").forEach(b=>b.addEventListener("click",()=>{const s=RIG.tl.siteById[b.dataset.site];S.ui.rigSel=s.id;renderRig();updateMap();revealMap();chart.flyTo(s.lat,s.lon,Math.max(chart.z,7))}));
 }
 
 /* ---------- places ---------- */
@@ -1109,6 +1114,7 @@ function switchTab(t){
   for(const b of document.querySelectorAll(".tab"))b.setAttribute("aria-selected",String(b.dataset.tab===t));
   for(const k of ["stays","rig","places"])$("view-"+k).hidden=k!==t;
   if(t==="rig")renderRig();
+  renderMDetail();if(isMobile())Sheet.refresh();
   updateMap();
 }
 
@@ -1185,8 +1191,8 @@ function openAddDialog(){
 $("dlgAdd").addEventListener("close",async()=>{if($("dlgAdd").returnValue==="go"){await recompute();switchTab("stays");fitToContent();toast("Oppholdet er lagt til.")}});
 
 /* ================= pick on map ================= */
-function startPick(kind,id,text){S.ui.pick={kind,id};$("pickText").textContent=text;$("pickbar").hidden=false;$("map").classList.add("pick");if(innerWidth<=820)$("map").scrollIntoView({behavior:"smooth"})}
-function endPick(){S.ui.pick=null;$("pickbar").hidden=true;$("map").classList.remove("pick")}
+function startPick(kind,id,text){S.ui.pick={kind,id};$("pickText").textContent=text;$("pickbar").hidden=false;$("map").classList.add("pick");if(isMobile()){startPick.prev=Sheet.state;Sheet.set("peek")}}
+function endPick(){S.ui.pick=null;$("pickbar").hidden=true;$("map").classList.remove("pick");if(isMobile()&&startPick.prev){Sheet.set(startPick.prev);startPick.prev=null}}
 $("pickCancel").addEventListener("click",endPick);
 
 /* ================= export ================= */
@@ -1203,6 +1209,133 @@ async function copyText(t){try{await navigator.clipboard.writeText(t);toast("Kop
 function confirmDialog(title,body,okText,onOk){
   const f=$("confirmForm");f.innerHTML=`<h2>${h(title)}</h2><p style="margin:0">${body}</p><div class="foot"><button class="btn ghost" value="cancel" type="submit">Avbryt</button><button class="btn accent" value="ok" type="submit">${h(okText)}</button></div>`;
   const d=$("dlgConfirm");d.onclose=()=>{if(d.returnValue==="ok")onOk()};d.showModal();
+}
+
+/* ================= mobil: bunnark og detaljkort ================= */
+const MQ=matchMedia("(max-width:820px)");
+function isMobile(){return MQ.matches}
+/* Arket har tre stopp: «peek» (bare toppen synlig), «half» og «full». Kartet ligger alltid under i fullskjerm. */
+const Sheet={
+  state:"half",vis:0,el:null,
+  init(){
+    this.el=$("panel");
+    for(const el of [$("grip"),this.el.querySelector(".brand"),this.el.querySelector(".tabs"),$("mdet")])bindSheetDrag(el);
+    for(const v of ["view-stays","view-rig","view-places","mdet"])bindScrollDrag($(v));
+    $("grip").addEventListener("click",()=>{if(Sheet.justDragged)return;Sheet.set({peek:"half",half:"full",full:"peek"}[Sheet.state])});
+    this.el.addEventListener("focusin",e=>{const t=e.target;if(isMobile()&&t.matches&&t.matches("input:not([type=checkbox]),select,textarea")&&this.state!=="full")this.set("full")});
+    addEventListener("resize",()=>this.refresh());
+    MQ.addEventListener("change",()=>{if(isMobile())this.set(this.state,false);else{chart.inset=0;document.documentElement.style.removeProperty("--sheet-vis")}renderStays();updateMap()});
+    if(isMobile())this.set("half",false);
+  },
+  snaps(){
+    const H=this.el.offsetHeight,half=Math.round(Math.min(H,innerHeight*.5));
+    const det=!$("mdet").hidden,anchor=det?$("mdet").querySelector(".mdet-title"):this.el.querySelector(".tabs");
+    let peek=anchor?anchor.offsetTop+anchor.offsetHeight+(det?14:0):140;
+    peek=Math.max(96,Math.min(half-40,peek));
+    return {peek,half,full:H};
+  },
+  apply(v){this.vis=v;document.documentElement.style.setProperty("--sheet-vis",Math.round(v)+"px")},
+  set(state,anim=true){
+    if(!this.el||!isMobile())return;
+    if(!anim)this.el.classList.add("dragging");
+    const sn=this.snaps();this.state=state;this.apply(sn[state]);
+    this.el.style.setProperty("--sheet-hidden",Math.max(0,sn.full-sn[state])+"px");
+    this.el.setAttribute("data-sheet",state);
+    chart.inset=Math.min(sn[state],sn.half);
+    if(!anim){void this.el.offsetHeight;this.el.classList.remove("dragging")}
+  },
+  refresh(){if(isMobile())this.set(this.state,false)},
+};
+/* Fra fullt ark må kartet bli synlig før det flyr dit. */
+function revealMap(){if(isMobile()&&Sheet.state==="full")Sheet.set("half")}
+let drag=null;
+function dragStart(y){drag={y0:y,v0:Sheet.vis,samples:[[performance.now(),Sheet.vis]]};Sheet.el.classList.add("dragging")}
+function dragMove(y){
+  const sn=Sheet.snaps();let v=drag.v0+(drag.y0-y);
+  if(v>sn.full)v=sn.full+(v-sn.full)*.25;if(v<sn.peek)v=sn.peek-(sn.peek-v)*.35;   // gummistrikk i endene
+  Sheet.apply(v);drag.samples.push([performance.now(),v]);if(drag.samples.length>6)drag.samples.shift();
+}
+function dragEnd(){
+  Sheet.el.classList.remove("dragging");
+  const sm=drag.samples,a=sm[0],b=sm[sm.length-1],vel=(b[1]-a[1])/Math.max(1,b[0]-a[0]);   // px/ms, positiv = opp
+  const sn=Sheet.snaps(),order=["peek","half","full"],v=Sheet.vis,dist=v-drag.v0;let target;
+  // et raskt sveip eller et tydelig drag går til neste stopp i den retningen
+  if(vel>.35||(dist>70&&vel>-.1))target=order.find(k=>sn[k]>drag.v0+8)||"full";
+  else if(vel<-.35||(dist<-70&&vel<.1))target=[...order].reverse().find(k=>sn[k]<drag.v0-8)||"peek";
+  else target=order.reduce((best,k)=>Math.abs(sn[k]-v)<Math.abs(sn[best]-v)?k:best,"peek");
+  drag=null;Sheet.set(target);
+}
+/* Dra i håndtaket, toppen eller overskriften i detaljkortet. Små bevegelser regnes som trykk. */
+function bindSheetDrag(el){
+  let p=null;
+  const move=e=>{
+    if(!p||e.pointerId!==p.id)return;
+    if(!p.on){const dy=e.clientY-p.y,dx=e.clientX-p.x;if(Math.abs(dy)<7||Math.abs(dy)<Math.abs(dx))return;p.on=true;dragStart(p.y)}
+    dragMove(e.clientY);
+  };
+  const up=e=>{if(!p||e.pointerId!==p.id)return;const was=p.on;p=null;
+    removeEventListener("pointermove",move);removeEventListener("pointerup",up);removeEventListener("pointercancel",up);
+    if(was){dragEnd();Sheet.justDragged=true;setTimeout(()=>Sheet.justDragged=false,60)}};
+  el.addEventListener("pointerdown",e=>{
+    if(!isMobile()||e.button>0)return;if(el.id==="mdet"&&!e.target.closest(".mdet-head"))return;
+    p={id:e.pointerId,y:e.clientY,x:e.clientX,on:false};
+    addEventListener("pointermove",move);addEventListener("pointerup",up);addEventListener("pointercancel",up);
+  });
+  el.addEventListener("click",e=>{if(Sheet.justDragged){e.stopPropagation();e.preventDefault()}},true);
+}
+/* I listene: dra ned når listen står øverst lukker arket, dra opp fra «peek» åpner det. Ellers vanlig scrolling. */
+function bindScrollDrag(box){
+  let t=null;
+  const scroller=target=>box.id==="mdet"?target.closest(".mdet-body"):box;
+  box.addEventListener("touchstart",e=>{
+    if(!isMobile()||e.touches.length>1){t=null;return}
+    const sc=scroller(e.target);if(!sc){t=null;return}
+    t={sc,y:e.touches[0].clientY,top:sc.scrollTop,on:false};
+  },{passive:true});
+  box.addEventListener("touchmove",e=>{
+    if(!t)return;const y=e.touches[0].clientY,dy=y-t.y;
+    if(!t.on){
+      if(Math.abs(dy)<6)return;
+      const down=dy>0&&t.top<=0&&t.sc.scrollTop<=0,upFromPeek=dy<0&&Sheet.state==="peek";
+      if(!(down||upFromPeek)||!e.cancelable){t=null;return}
+      t.on=true;dragStart(t.y);
+    }
+    e.preventDefault();dragMove(y);
+  },{passive:false});
+  const end=()=>{if(t&&t.on)dragEnd();t=null};
+  box.addEventListener("touchend",end);box.addEventListener("touchcancel",end);
+}
+function stayConf(s){const r={ukjent:0,usikker:1,trolig:2,manuell:3,sikker:4};return s.segs.reduce((w,g)=>r[g.conf]<r[w]?g.conf:w,"sikker")}
+/* Detaljkortet viser valgt opphold øverst i arket i stedet for å folde det ut midt i listen. */
+function renderMDetail(dir){
+  const box=$("mdet"),panel=$("panel");
+  const s=isMobile()&&S.ui.tab==="stays"&&S.ui.sel?STAYS.find(x=>x.id===S.ui.sel):null;
+  if(!s){if(!box.hidden){box.hidden=true;box.innerHTML="";box.dataset.id="";panel.classList.remove("detail-open")}return}
+  const same=box.dataset.id===s.id,body=box.querySelector(".mdet-body"),keep=same&&body?body.scrollTop:0;
+  const vis=STAYS.filter(x=>inYear(x,S.ui.year)),i=vis.indexOf(s),older=vis[i-1],newer=vis[i+1];
+  const p=S.places[s.key];
+  let title,sub;
+  if(s.turnback){const l=s.legs[0];title=`Snudde · ${h(l.from)}–${h(l.to)}`;sub=`<span class="mono">${C.fmtDate(s.start)}</span>`}
+  else{title=instTitle(s,p);sub=`<span class="mono">${C.fmtDate(s.start)}${s.startKnown?"":"?"} – ${C.fmtDate(s.end)}${s.endKnown?"":"?"}</span>${pill(stayConf(s))}`}
+  const longCls=s.long&&!S.accepted[s.id]?" long":s.over?" over":"";
+  box.innerHTML=`<div class="mdet-head">
+      <button class="back" type="button" data-act="mclose" aria-label="Tilbake til alle opphold"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M11 3.5 5.5 9l5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="mdet-title"><h2>${title}</h2><div class="sub">${sub}</div></div>
+      <div class="mdet-days${longCls}"><b>${s.turnback?0:s.days}</b><span>døgn</span></div>
+      <div class="mdet-nav">
+        <button class="btn small ghost" type="button" data-act="mgo" data-dir="back" data-id="${older?h(older.id):""}"${older?"":" disabled"} aria-label="Forrige tur">‹ Forrige tur</button>
+        <button class="btn small ghost" type="button" data-act="mgo" data-dir="fwd" data-id="${newer?h(newer.id):""}"${newer?"":" disabled"} aria-label="Neste tur">Neste tur ›</button>
+      </div>
+    </div>
+    <div class="mdet-body">${stayDetail(s)}</div>`;
+  box.dataset.id=s.id;box.hidden=false;panel.classList.add("detail-open");
+  box.querySelector(".mdet-body").scrollTop=keep;
+  if(dir&&!same){box.classList.remove("enter","back-dir");void box.offsetWidth;box.classList.add("enter");if(dir==="back")box.classList.add("back-dir")}
+}
+function closeMDetail(){
+  const id=S.ui.sel;S.ui.sel=null;renderStays();updateMap();Sheet.refresh();
+  const row=id&&document.querySelector(`#view-stays .stay[data-stay="${CSS.escape(id)}"]`);
+  if(row){const v=$("view-stays");v.scrollTop=Math.max(0,row.offsetTop-v.offsetTop-v.clientHeight/4);row.classList.add("sel");setTimeout(()=>row.classList.remove("sel"),900)}
 }
 
 /* ================= events ================= */
@@ -1255,6 +1388,8 @@ document.addEventListener("click",async e=>{
   else if(act==="setbase"){const p=S.places[b.dataset.key];p.kind="base";p.kindEdited=true;p.link=null;p.auto=false;if(!p.labelEdited)p.label=p.raw;persist();recompute()}
   else if(act==="setinst"){const p=S.places[b.dataset.key];p.kind="installation";p.kindEdited=true;if(!p.labelEdited)p.label=p.nameHint||p.raw;persist();recompute()}
   else if(act==="pickplace")startPick("place",b.dataset.key,"Klikk der installasjonen ligger");
+  else if(act==="mclose")closeMDetail();
+  else if(act==="mgo")selectStay(b.dataset.id,b.dataset.dir);
 });
 document.addEventListener("change",e=>{
   const t=e.target;if(!t||t.id!=="flotat")return;
@@ -1265,17 +1400,21 @@ document.addEventListener("change",e=>{
 document.addEventListener("keydown",e=>{
   if((e.key==="Enter"||e.key===" ")&&e.target.classList&&e.target.classList.contains("stay")){e.preventDefault();selectStay(e.target.dataset.stay)}
   if(e.key==="Escape"&&S.ui.pick)endPick();
+  else if(e.key==="Escape"&&isMobile()&&S.ui.sel)closeMDetail();
 });
-function selectStay(id){
-  S.ui.sel=S.ui.sel===id?null:id;renderStays.scroll=true;renderStays();updateMap();
+function selectStay(id,dir){
+  const mob=isMobile();
+  S.ui.sel=mob?id:(S.ui.sel===id?null:id);renderStays.scroll=true;renderStays();updateMap();
+  if(mob){renderMDetail(dir||"fwd");if(S.ui.sel&&Sheet.state!=="half")Sheet.set("half");else Sheet.refresh()}
   const s=STAYS.find(x=>x.id===S.ui.sel);if(!s)return;
   const pts=s.segs.filter(g=>g.site).map(g=>[g.site.lat,g.site.lon]);
   if(pts.length===1)chart.flyTo(pts[0][0],pts[0][1],Math.max(chart.z,7));else if(pts.length)chart.fit(pts);
 }
-for(const b of document.querySelectorAll(".tab"))b.addEventListener("click",()=>{switchTab(b.dataset.tab);if(b.dataset.tab!=="places")fitToContent()});
+for(const b of document.querySelectorAll(".tab"))b.addEventListener("click",()=>{if(isMobile()&&Sheet.state==="peek")Sheet.set("half");switchTab(b.dataset.tab);if(b.dataset.tab!=="places")fitToContent()});
 $("btnImport").addEventListener("click",()=>$("file").click());
 $("file").addEventListener("change",e=>{const f=e.target.files[0];if(f)handleFile(f);e.target.value=""});
-$("btnMenu").addEventListener("click",()=>{const m=$("menu");m.hidden=!m.hidden;$("btnMenu").setAttribute("aria-expanded",String(!m.hidden))});
+$("btnMenu").addEventListener("click",()=>{const m=$("menu");m.hidden=!m.hidden;$("btnMenu").setAttribute("aria-expanded",String(!m.hidden));if(!m.hidden&&isMobile())Sheet.set("full")});
+$("zlayers").addEventListener("click",()=>{const l=$("legend"),on=!l.classList.contains("open");l.classList.toggle("open",on);$("zlayers").setAttribute("aria-expanded",String(on))});
 $("zin").addEventListener("click",()=>chart.zoomAt(2));
 $("zout").addEventListener("click",()=>chart.zoomAt(.5));
 $("zfit").addEventListener("click",fitToContent);
@@ -1283,6 +1422,7 @@ for(const [id,key] of [["optRoutes","routes"],["optDrift","drift"],["optNames","
 
 /* ================= boot ================= */
 chart=new Chart($("map"));chart.fullNames=MAPOPT.names;
+Sheet.init();
 const tip=$("tip");
 chart.cb.hover=(m,p,geo)=>{
   $("readout").textContent=geo?fmtPos(geo[0],geo[1]):"";
@@ -1304,8 +1444,9 @@ chart.cb.click=(m,geo)=>{
     else{const p=S.places[pk.id];if(p){p.link={type:"manual",lat:+geo[0].toFixed(5),lon:+geo[1].toFixed(5)};p.auto=false;p.kind="installation"}}
     persist();toast("Posisjonen er lagret.");recompute();return;
   }
-  if(!m||m.port)return;
-  if(S.ui.tab==="rig"&&m.data&&m.data.rig){S.ui.rigSel=m.id;renderRig();updateMap();const el=document.querySelector(`.visit[data-site="${CSS.escape(m.id)}"]`);el&&el.scrollIntoView({block:"nearest"});return}
+  if(isMobile()){const l=$("legend");if(l.classList.contains("open")){l.classList.remove("open");$("zlayers").setAttribute("aria-expanded","false");if(!m)return}}
+  if(!m||m.port){if(isMobile()&&!m&&Sheet.state!=="peek")Sheet.set("peek");return}
+  if(S.ui.tab==="rig"&&m.data&&m.data.rig){S.ui.rigSel=m.id;renderRig();updateMap();if(isMobile()&&Sheet.state==="peek")Sheet.set("half");const el=document.querySelector(`.visit[data-site="${CSS.escape(m.id)}"]`);el&&el.scrollIntoView({block:isMobile()?"center":"nearest",behavior:isMobile()?"smooth":"auto"});return}
   const st=STAYS.filter(s=>s.segs.some(g=>g.site&&g.site.id===m.id)&&inYear(s,S.ui.year)).pop()||STAYS.filter(s=>s.segs.some(g=>g.site&&g.site.id===m.id)).pop();
   if(st){if(S.ui.tab!=="stays")switchTab("stays");S.ui.sel=null;selectStay(st.id)}
 };
@@ -1318,6 +1459,7 @@ if(document.fonts&&document.fonts.ready)document.fonts.ready.then(themeObs);
   restoreSodirFile();
   const ff=store.get("sodir:facfile",null);
   await recompute();
+  if(isMobile())Sheet.set("half",false);
   if(STAYS.length)fitToContent();
   const ok=await loadFacilities(false);
   if(ff&&ff.list){const m=new Map(D.facilities.map(f=>[f.id,f]));for(const f of ff.list)m.set(f.id,{...m.get(f.id),...f});setFacilities([...m.values()],D.status,D.stamp)}
