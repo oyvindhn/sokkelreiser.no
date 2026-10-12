@@ -412,14 +412,19 @@ function haversineKm(a,b){
   return 2*R*Math.asin(Math.sqrt(h));
 }
 /* Group a rig's wellbores into sites (≤1.5 km apart) and chronological visits. */
-/* prospects: {"25/2-18 S":"Langfjellet"} – navn brukt da brønnen ble boret (kodelisten). Gjelder også sidesteg (25/2-18 ST2). */
-function prospectOf(wells,prospects){
-  if(!prospects)return "";
-  const keys=Object.keys(prospects).map(k=>[normName(k),prospects[k]]);
-  for(const w of wells)for(const n of [w.name,w.well]){const m=normName(n||"");for(const [k,v] of keys)if(m===k||m.startsWith(k+" ")||m.startsWith(k+"T"))return v}
-  return "";
+/* Sodirs funnfelt er «<brønn> <navn>», f.eks. «2/4-2 Ekofisk» eller «25/2-18 S Langfjellet». Gir bare navnet. */
+function discoveryName(d){
+  const t=String(d||"").trim().split(/\s+/).filter(Boolean);
+  while(t.length>1&&(/^\d+\/\d+-[\w\/-]+$/.test(t[0])||/^(S|A|B|R|T|ST\d*|SR|AT\d*|[A-Z]\d?)$/.test(t[0])))t.shift();
+  const n=t.join(" ");return /^\d+\/\d+-/.test(n)?"":n;
 }
-function rigTimeline(facId,wellbores,prospects){
+/* «Lundin Norway AS» -> «Lundin», «Phillips Petroleum Company Norway» -> «Phillips» */
+function shortOperator(o){
+  const drop=/^(as|asa|a\/s|ab|bv|nv|ltd|limited|inc|plc|norge|norway|company|petroleum|energy|oil|exploration|production|e&p|operating|operations|group|international)$/i;
+  const t=String(o||"").replace(/[.,]/g," ").split(/\s+/).filter(Boolean);
+  const k=t.filter(x=>!drop.test(x)),r=(k.length?k:t).join(" ");return r===r.toUpperCase()?titleCase(r):r;
+}
+function rigTimeline(facId,wellbores){
   const wbs=wellbores.filter(w=>w.entry&&w.lat!=null).slice().sort((a,b)=>a.entry<b.entry?-1:a.entry>b.entry?1:0);
   const sites=[];
   for(const w of wbs){
@@ -430,17 +435,14 @@ function rigTimeline(facId,wellbores,prospects){
   for(const s of sites){
     const by=(k)=>{const m=new Map();for(const w of s.wells)if(w[k])m.set(w[k],(m.get(w[k])||0)+1);return [...m.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||""};
     s.field=by("field");s.discovery=by("discovery");s.well=by("well")||s.wells[0].name;s.licence=by("licence");s.operator=by("operator");
-    // «Volvefeltet 15/9»: felt (eller funn) og blokk. Uten felt: «Blokk 8/5». Brønn og lisens i undertittelen.
+    // «8/5-1 Ogna»: brønnen og navnet på funnet (datidens navn), ellers feltet. Uten navn: bare brønnen.
     const pl=s.licence?"PL "+s.licence.replace(/^PL\s*/i,""):"";
     s.block=(/^(\d+\/\d+)/.exec(s.well)||[])[1]||"";
-    // funnet brønnen ble boret på (datidens navn, f.eks. Langfjellet) går foran dagens felt (Hugin Satellitter)
-    // Sodir: «25/2-18 S (LANGFJELLET)» -> Langfjellet. Bare et brønnummer gir ikke noe navn.
-    const par=/\(([^)]+)\)/.exec(s.discovery||"");
-    const disc=prospectOf(s.wells,prospects)||(par?par[1].trim():s.discovery&&!/^\d/.test(s.discovery)?s.discovery:"");
-    const place=disc?(s.field&&normName(s.field)===normName(disc)?fieldWord(s.field):titleCase(disc)):s.field?fieldWord(s.field):"";
-    s.place=place;
-    s.name=place?(s.block&&!/\d+\/\d+/.test(place)?place+" – "+s.block:place):(s.block?"Blokk "+s.block:pl||s.well);
-    s.sub=[s.well,pl].filter(x=>x&&x!==s.name).join(" · ");
+    const dn=discoveryName(s.discovery);
+    s.place=titleCase(dn||s.field||"");
+    s.name=[s.well,s.place].filter(Boolean).join(" ");
+    s.operatorShort=shortOperator(s.operator);
+    s.sub=pl;
     s.depth=s.wells.find(w=>w.depth!=null)?.depth??null;
     s.area=by("area");
   }
@@ -578,7 +580,7 @@ function toCSV(rows,delim=";"){
 
 const api={DAY,pad,isoFromDate,toDay,fromDay,addDays,diffDays,todayIso,parseDate,fmtDate,clean,normName,tokens,nameScore,parseCSV,readXlsx,
   FIELDS,findHeaderRow,guessColumns,analyseTables,buildLegs,placeKey,derivePlaces,buildStays,normFacility,normWellbore,rowsToObjects,
-  buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,nameAt,fieldWord,titleCase,toCSV,isSodirWellbore,isSodirFacility,
+  buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,nameAt,fieldWord,discoveryName,shortOperator,titleCase,toCSV,isSodirWellbore,isSodirFacility,
   activityByFacility,dateFit,neighbours,pickAuto,heliport,flightHints,flightFit};
 if(typeof module!=="undefined"&&module.exports)module.exports=api;else root.OK=api;
 })(typeof window!=="undefined"?window:globalThis);

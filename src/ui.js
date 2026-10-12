@@ -148,7 +148,7 @@ async function getWellbores(facId){
 async function timelineFor(facId){
   if(D.timelines.has(facId))return D.timelines.get(facId);
   const wbs=await getWellbores(facId);if(!wbs)return null;
-  const tl=C.rigTimeline(facId,wbs,PROSPECTS);D.timelines.set(facId,tl);return tl;
+  const tl=C.rigTimeline(facId,wbs);D.timelines.set(facId,tl);return tl;
 }
 function ingestSodirFile(kind,headers,body){
   const objs=C.rowsToObjects(headers,body);
@@ -271,8 +271,7 @@ function autoLink(){
 let NEIGH=new Map();
 /* Kodeliste: koder som tidligere er koblet (koder.json ligger ved siden av siden og kan utvides). */
 let CODES={};
-let PROSPECTS={};
-async function loadCodeList(){try{const r=await fetch("koder.json",{cache:"no-cache"});if(!r.ok)return;const j=await r.json();CODES=(j&&j.koder)||{};PROSPECTS=(j&&j.prospekter)||{};D.timelines.clear()}catch(_){}}
+async function loadCodeList(){try{const r=await fetch("koder.json",{cache:"no-cache"});if(!r.ok)return;const j=await r.json();CODES=(j&&j.koder)||{}}catch(_){}}
 /* «SKARV» i kodelisten skal treffe «SKARV FPSO» hos Sodir. Faste og i drift foretrekkes. */
 function looseName(navn){
   const n=C.normName(navn||"");if(!n)return null;
@@ -602,7 +601,7 @@ function stayMapItems(){
     }
   }
   const mapLabel=a=>{const rigs=[...a.rigs.values()];if(a.site.kind==="fixed"){const own=[a.site.name,...rigs.filter(r=>C.normName(r)!==C.normName(a.site.name))];return own.join(" / ")}
-    return (rigs.length?rigs.join(" / ")+" – ":"")+a.site.name};
+    return [rigs.join(" / "),a.site.name,a.site.operatorShort].filter(Boolean).join(" • ")};
   const markers=[...agg.values()].map(a=>({id:a.site.id,lat:a.site.lat,lon:a.site.lon,r:PIN,conf:a.conf,sel:a.sel,dim:a.dim,label:mapLabel(a),days:a.days,data:a}));
   for(const pt of ports.values())markers.push({id:pt.site.id,lat:pt.site.lat,lon:pt.site.lon,r:4,port:true,dim:pt.dim,label:pt.site.name,data:{port:true,n:pt.n,site:pt.site}});
   return {markers,lines,routes:[...routes.values()]};
@@ -713,7 +712,7 @@ function stayRow(s){
   const title=p?p.label:s.key;
   // egen fast installasjon: ingenting (navnet står som tittel). Lå ved en annen (boligrigg): «Skarvfeltet – 6507/5».
   const own=p&&p.link&&p.link.type==="sodir"?p.link.id:null;
-  const where=segs.some(g=>g.site)?segs.filter(g=>g.site).map(g=>g.site.kind==="fixed"?(g.site.facilityId===own?"":g.site.place||g.site.name):g.site.name).filter((x,i,a)=>x&&C.normName(x)!==C.normName(title)&&a.indexOf(x)===i).join(" → "):"Posisjon ukjent";
+  const where=segs.some(g=>g.site)?segs.filter(g=>g.site).map(g=>g.site.kind==="fixed"?(g.site.facilityId===own?"":g.site.place||g.site.name):[g.site.name,g.site.operatorShort].filter(Boolean).join(" • ")).filter((x,i,a)=>x&&C.normName(x)!==C.normName(title)&&a.indexOf(x)===i).join(" → "):"Posisjon ukjent";
   const conf=segs.reduce((w,g)=>{const r={ukjent:0,usikker:1,trolig:2,manuell:3,sikker:4};return r[g.conf]<r[w]?g.conf:w},"sikker");
   const when=`${C.fmtDate(s.start,false)}${s.startKnown?"":"?"}<br>${C.fmtDate(s.end,false)}${s.endKnown?"":"?"}`;
   let html=`<div class="stay${sel?" sel":""}" role="button" tabindex="0" data-stay="${h(s.id)}" aria-expanded="${sel}">

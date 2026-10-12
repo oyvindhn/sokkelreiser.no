@@ -195,19 +195,6 @@ test("flytid fra heliporten skiller felt med lik kode", () => {
   assert.ok(C.heliport("bnn") && C.heliport("ENZV"));
 });
 
-test("riggens navn på datoen og lisens i lokasjonsnavnet", () => {
-  const wb = (name, e, c, fac, field, lic) => C.normWellbore({ wlbWellboreName: name, wlbWell: name, wlbEntryDate: Date.parse(e), wlbCompletionDate: Date.parse(c), wlbNsDecDeg: 57, wlbEwDecDeg: 2 + name.length / 10, wlbField: field, wlbProductionLicence: lic, wlbDrillingFacility: fac, fclNpdidFacilityDrilling: 5 });
-  const tl = C.rigTimeline("5", [wb("8/5-1", "2016-03-01", "2016-05-20", "MÆRSK INTERCEPTOR", "", "571"), wb("7/4-3XX", "2022-01-01", "2022-03-01", "NOBLE INTERCEPTOR", "BRYNHILD", "148")]);
-  assert.equal(C.nameAt(tl, "2016-04-01"), "MÆRSK INTERCEPTOR");
-  assert.equal(C.nameAt(tl, "2022-02-01"), "NOBLE INTERCEPTOR");
-  const s1 = tl.sites.find((s) => s.well === "8/5-1");
-  assert.equal(s1.name, "Blokk 8/5");
-  assert.equal(s1.sub, "8/5-1 · PL 571");
-  const s2 = tl.sites.find((s) => s.field === "BRYNHILD");
-  assert.equal(s2.name, "Brynhildfeltet – 7/4");
-  assert.equal(s2.sub, "7/4-3XX · PL 148");
-});
-
 test("feltnavn og Maersk", () => {
   assert.equal(C.titleCase("MÆRSK INSPIRER"), "Maersk Inspirer");
   assert.equal(C.titleCase("IVAR AASEN"), "Ivar Aasen");
@@ -215,16 +202,33 @@ test("feltnavn og Maersk", () => {
   assert.equal(C.titleCase("PETROJARL KNARR"), "Petrojarl Knarr");
 });
 
-test("datidens funnavn går foran dagens feltnavn", () => {
-  const w = (d, f) => C.normWellbore({ wlbWellboreName: "25/2-18 S", wlbWell: "25/2-18", wlbEntryDate: Date.parse("2016-01-01"), wlbCompletionDate: Date.parse("2016-03-01"), wlbNsDecDeg: 59.6, wlbEwDecDeg: 2.4, wlbDiscovery: d, wlbField: f, fclNpdidFacilityDrilling: 5 });
-  assert.equal(C.rigTimeline("5", [w("LANGFJELLET", "HUGIN SATELLITTER")]).sites[0].name, "Langfjellet – 25/2");
-  assert.equal(C.rigTimeline("5", [w("SKARV", "SKARV")]).sites[0].name, "Skarvfeltet – 25/2");
-  assert.equal(C.rigTimeline("5", [w("25/2-18 S", "HUGIN")]).sites[0].name, "Huginfeltet – 25/2");
-  assert.equal(C.rigTimeline("5", [w("25/2-18 S (LANGFJELLET)", "HUGIN SATELLITTER")]).sites[0].name, "Langfjellet – 25/2");
+/* Sodir: wlbDiscovery er «<brønn> <navn>» (f.eks. «2/4-2 Ekofisk»). Syntetiske eksempler. */
+const wbx = (o) => C.normWellbore({ wlbEntryDate: Date.parse("2016-01-01"), wlbCompletionDate: Date.parse("2016-03-01"), wlbNsDecDeg: 59.8, wlbEwDecDeg: 2.6, fclNpdidFacilityDrilling: 5, ...o });
+
+test("riggens navn på datoen", () => {
+  const wb = (name, e, c, fac) => wbx({ wlbWellboreName: name, wlbWell: name, wlbEntryDate: Date.parse(e), wlbCompletionDate: Date.parse(c), wlbDrillingFacility: fac });
+  const tl = C.rigTimeline("5", [wb("1/1-1", "2016-03-01", "2016-05-20", "OLD NAME"), wb("2/2-1", "2022-01-01", "2022-03-01", "NEW NAME")]);
+  assert.equal(C.nameAt(tl, "2016-04-01"), "OLD NAME");
+  assert.equal(C.nameAt(tl, "2022-02-01"), "NEW NAME");
 });
 
-test("prospektnavn fra kodelisten går foran Sodirs feltnavn", () => {
-  const w = C.normWellbore({ wlbWellboreName: "25/2-18 ST2", wlbWell: "25/2-18", wlbEntryDate: Date.parse("2016-01-01"), wlbCompletionDate: Date.parse("2016-03-01"), wlbNsDecDeg: 59.8, wlbEwDecDeg: 2.6, wlbField: "HUGIN SATELLITTER", fclNpdidFacilityDrilling: 5 });
-  assert.equal(C.rigTimeline("5", [w], { "25/2-18 S": "Langfjellet" }).sites[0].name, "Langfjellet – 25/2");
-  assert.equal(C.rigTimeline("5", [w]).sites[0].name, "Hugin Satellitter-feltet – 25/2");
+test("funnnavn fra Sodirs format «brønn navn»", () => {
+  assert.equal(C.discoveryName("2/4-2 Ekofisk"), "Ekofisk");
+  assert.equal(C.discoveryName("25/2-18 S Langfjellet"), "Langfjellet");
+  assert.equal(C.discoveryName("16/1-12 Ivar Aasen"), "Ivar Aasen");
+  assert.equal(C.discoveryName("8/5-1"), "", "bare brønnummer er ikke et navn");
+  assert.equal(C.discoveryName(""), "");
 });
+
+test("lokasjonsnavn: brønn og funnavn, ellers felt, ellers bare brønn", () => {
+  const site = (o) => C.rigTimeline("5", [wbx({ wlbWellboreName: "9/9-1 S", wlbWell: "9/9-1", ...o })]).sites[0];
+  assert.equal(site({ wlbDiscovery: "9/9-1 Testfunn", wlbField: "TESTFELT" }).name, "9/9-1 Testfunn", "funnavnet (datidens navn) går foran dagens felt");
+  assert.equal(site({ wlbField: "TESTFELT" }).name, "9/9-1 Testfelt");
+  assert.equal(site({}).name, "9/9-1");
+});
+
+test("operatør kortes ned uten å miste identiteten", () => {
+  for (const [a, b] of [["Lundin Norway AS", "Lundin"], ["Equinor Energy AS", "Equinor"], ["Phillips Petroleum Company Norway", "Phillips"], ["Aker BP ASA", "Aker BP"], ["A/S Norske Shell", "Norske Shell"], ["LUNDIN NORWAY AS", "Lundin"]])
+    assert.equal(C.shortOperator(a), b, a);
+});
+
