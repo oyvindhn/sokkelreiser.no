@@ -23,6 +23,8 @@ def read(name):
 def parts(favicon=True):
     base = json.loads((ROOT / "data" / "basemap.json").read_text(encoding="utf-8"))
     basemap = "window.BASEMAP=" + json.dumps(base, separators=(",", ":")) + ";"
+    flot = json.loads((ROOT / "data" / "floteller.json").read_text(encoding="utf-8"))
+    basemap += "window.FLOTELLER=" + json.dumps(flot, ensure_ascii=False, separators=(",", ":")) + ";"
     icon = '<link rel="icon" href="favicon.svg" type="image/svg+xml">\n' if favicon else ""
     head = f"""<title>Sokkelreiser</title>
 <meta name="description" content="Finn tilbake til hvor du har vært offshore. Reiselogg fra MinDaVinci, posisjoner fra Sodir. Alt skjer i nettleseren.">
@@ -69,6 +71,7 @@ def build_site():
         if f.is_file():
             shutil.copy2(f, OUT / f.name)
     shutil.copy2(ROOT / "data" / "koder.json", OUT / "koder.json")
+    shutil.copy2(ROOT / "data" / "floteller.json", OUT / "floteller.json")
     # versjon.txt: brukes til å kontrollere at publiseringen faktisk havnet der domenet peker
     sha = os.environ.get("GITHUB_SHA") or subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
     (OUT / "versjon.txt").write_text((sha or "lokal") + "\n", encoding="utf-8")

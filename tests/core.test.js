@@ -301,3 +301,33 @@ test("samme dag uten tider: arket nyeste først snus riktig", () => {
   const legs = C.buildLegs(t, { date: 0, from: 4, to: 5 }, false);
   assert.deepEqual(legs.map((l) => l.from + l.to), ["SVGSVG", "SVGSLA", "SLASVG"]);
 });
+
+test("heliportens rekkevidde: BNN flyr til Skarv, ikke til Castberg", () => {
+  const skarv = [65.7, 7.6], castberg = [71.6, 20.4], sverdrup = [58.85, 2.6];
+  assert.equal(C.reachable("BNN", skarv), true);
+  assert.equal(C.reachable("BNN", castberg), false);
+  assert.equal(C.reachable("HFT", castberg), true);
+  assert.equal(C.reachable("ENBN", skarv), true);
+  assert.equal(C.reachable("BNN", sverdrup), false);
+  assert.equal(C.reachable("SVG", sverdrup), true);
+  assert.equal(C.reachable("ABC", skarv), null);
+});
+
+test("flotellperioder: åpne perioder varer til neste oppdrag", () => {
+  const E = [
+    { felt: "SKARV", fra: "2024-02-12" },
+    { felt: "BALDER", til: "2025-06-24" },
+    { felt: "WHITE ROSE", utland: true, fra: "2025-07-08", til: "2026-01-06" },
+    { felt: "SKARV", fra: "2026-03-14" },
+  ];
+  const P = C.flotelPeriods(E);
+  assert.equal(P[0].to, "2025-06-24");
+  assert.equal(P[1].from, "2024-02-12");
+  const at = (d) => C.flotelCandidates(E, d, [], () => [60, 3]).map((e) => e.felt);
+  assert.deepEqual(at("2024-06-01"), ["SKARV", "BALDER"]);
+  assert.deepEqual(at("2025-09-01"), []);            // i Canada
+  assert.deepEqual(at("2026-03-20"), ["SKARV"]);
+  // fløy fra BNN: Balder (Nordsjøen) er umulig
+  const pos = (e) => (e.felt === "SKARV" ? [65.7, 7.6] : [59.25, 2.37]);
+  assert.deepEqual(C.flotelCandidates(E, "2024-06-01", ["BNN"], pos).map((e) => e.felt), ["SKARV"]);
+});

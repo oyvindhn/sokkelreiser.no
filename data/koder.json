@@ -1,34 +1,33 @@
 {
-  "app": "sokkelreiser",
-  "version": 1,
-  "koder": {
-    "SKV": {
-      "navn": "SKARV"
-    },
-    "FED": {
-      "navn": "Floatel Endurance",
-      "ved": "SKV"
-    },
-    "MGU": {
-      "navn": "MÆRSK GUARDIAN"
-    },
-    "NIT": {
-      "navn": "NOBLE INTERCEPTOR"
-    },
-    "INS": {
-      "navn": "MÆRSK INSPIRER"
-    },
-    "GOL": {
-      "navn": "GOLIAT"
-    },
-    "PJK": {
-      "navn": "KNARR"
-    },
-    "SLA": {
-      "navn": "SLEIPNER A"
-    },
-    "SLB": {
-      "navn": "SLEIPNER B"
-    }
+ "app": "sokkelreiser",
+ "version": 1,
+ "koder": {
+  "SKV": {
+   "navn": "SKARV"
+  },
+  "FED": {
+   "navn": "Floatel Endurance"
+  },
+  "MGU": {
+   "navn": "MÆRSK GUARDIAN"
+  },
+  "NIT": {
+   "navn": "NOBLE INTERCEPTOR"
+  },
+  "INS": {
+   "navn": "MÆRSK INSPIRER"
+  },
+  "GOL": {
+   "navn": "GOLIAT"
+  },
+  "PJK": {
+   "navn": "KNARR"
+  },
+  "SLA": {
+   "navn": "SLEIPNER A"
+  },
+  "SLB": {
+   "navn": "SLEIPNER B"
   }
+ }
 }

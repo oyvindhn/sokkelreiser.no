@@ -25,12 +25,13 @@ const S={
   places:store.get("places",{}),          // key -> {key,raw,label,kind,link,auto,rows,guess}
   manual:store.get("manual",[]),          // manual stays
   overrides:store.get("overrides",{}),
-  accepted:store.get("accepted",{}),      // stayId -> true: opphold over 5 uker som brukeren har godtatt    // stayId -> {lat,lon,label}
+  accepted:store.get("accepted",{}),
+  flotelAt:store.get("flotelAt",{}),      // stayId -> {felt,inst}: brukeren har oppgitt hvor flotellen lå      // stayId -> true: opphold over 5 uker som brukeren har godtatt    // stayId -> {lat,lon,label}
   ui:{tab:"stays",year:null,sel:null,rig:null,rigDate:"",rigSel:null,openPlace:null,pick:null},
 };
 function persist(){
   store.set("legs",S.legs);store.set("sourceName",S.sourceName);store.set("places",S.places);
-  store.set("manual",S.manual);store.set("overrides",S.overrides);store.set("accepted",S.accepted);
+  store.set("manual",S.manual);store.set("overrides",S.overrides);store.set("accepted",S.accepted);store.set("flotelAt",S.flotelAt);
 }
 
 /* ================= Sodir data ================= */
@@ -220,7 +221,7 @@ function syncPlaces(){
     const auto=port?"base":nearPort.has(d.key)?"installation":d.guess;
     const kind=old?(old.kindEdited?old.kind:(port||nearPort.has(d.key)?auto:old.kind)):auto;
     const autoLabel=kind==="installation"?(d.nameHint||d.raw):d.raw;
-    next[d.key]=old?{...old,kind,link:kind==="base"?null:old.link,rows:d.rows,raw:d.raw,nameHint:d.nameHint,guess:d.guess,label:old.labelEdited?old.label:(kind==="installation"&&old.link&&old.link.type==="sodir"&&D.facById.get(old.link.id)?C.titleCase(D.facById.get(old.link.id).name):autoLabel)}
+    next[d.key]=old?{...old,kind,link:kind==="base"?null:old.link,rows:d.rows,raw:d.raw,nameHint:d.nameHint,guess:d.guess,label:old.labelEdited?old.label:(kind==="installation"&&old.link&&old.link.type==="sodir"&&D.facById.get(old.link.id)?C.titleCase(D.facById.get(old.link.id).name):kind==="installation"&&old.link&&old.link.type==="flotel"?C.titleCase(old.link.name):kind==="installation"&&old.link&&old.link.type==="follow"?old.label:autoLabel)}
                    :{key:d.key,raw:d.raw,label:autoLabel,nameHint:d.nameHint,kind,guess:d.guess,link:null,auto:false,rows:d.rows};
   }
   for(const m of S.manual){if(S.places[m.key])next[m.key]={...S.places[m.key],manualOnly:!next[m.key]}}
@@ -330,6 +331,53 @@ function codeVed(e){const v=e&&e.ved;if(!v)return [];
 function followTarget(l,date){
   if(!l.periods||!l.periods.length)return l.key;
   const q=l.periods.find(x=>(!x.fra||date>=x.fra)&&(!x.til||date<=x.til));return q?q.key:null}
+/* ---------- floteller ---------- */
+const FLOT=new Map(Object.entries(((window.FLOTELLER||{}).floteller)||{}).map(([k,v])=>[C.normName(k),{name:k,entries:v}]));
+let EVID=new Map();   // flotellkode -> [{date,key}] fra hjemreiser fra flotellen etter utreise til en annen installasjon
+function flotelOf(key){
+  const p=S.places[key];if(!p)return null;
+  const names=[(CODES[p.raw]||{}).navn,p.label,p.link&&p.link.type==="flotel"?p.link.name:"",p.link&&p.link.type==="sodir"?(D.facById.get(p.link.id)||{}).name:""];
+  for(const n of names){const f=n&&FLOT.get(C.normName(n));if(f)return f}
+  return null;
+}
+function facilityFor(e){
+  if(!D.facilities.length)return null;
+  const byN=n=>n&&(D.facilities.find(f=>C.normName(f.name)===C.normName(n))||looseName(n));
+  let f=byN(e.inst);
+  if(!f&&e.felt){const c=D.facilities.filter(f=>!f.moveable&&f.lat!=null&&C.normName(f.belongsTo||"")===C.normName(e.felt));
+    c.sort((a,b)=>((b.phase==="IN SERVICE")-(a.phase==="IN SERVICE"))||a.name.length-b.name.length);f=c[0]||byN(e.felt)}
+  return f&&f.lat!=null?f:null;
+}
+function flotelSite(e){const f=facilityFor(e);return f?fixedSite(f):null}
+function resolveFlotel(stay,key,fl){
+  const T=C.titleCase(fl.name);
+  const rep=S.flotelAt[stay.id];
+  if(rep){const site=flotelSite(rep);if(site)return [{site,start:stay.start,end:stay.end,conf:"manuell",flotel:fl,note:`Du har oppgitt at ${T} lå ved ${C.titleCase(rep.felt)}.`}]}
+  const bases=[];for(const l of stay.legs||[])for(const x of [l&&l.from,l&&l.to])if(x&&kindOf(C.placeKey(x))==="base")bases.push(x);
+  const cands=C.flotelCandidates(fl.entries,stay.start,bases,e=>{const s=flotelSite(e);return s?[s.lat,s.lon]:null}).filter(c=>c.pos);
+  // bevis: du fløy hjem fra flotellen etter utreise til en installasjon, eller skyttel mellom dem
+  const ev=[];for(const x of EVID.get(key)||[])if(x.date>=C.addDays(stay.start,-3)&&x.date<=C.addDays(stay.end||stay.start,3)){const pp=placePos(x.key);if(pp)ev.push(pp)}
+  for(const k of (NEIGH.get(key)||new Map()).keys()){const pp=placePos(k);if(pp)ev.push(pp)}
+  const near=c=>ev.some(p=>C.haversineKm(p,c.pos)<=15);
+  const proven=cands.filter(near);
+  const pick=proven[0]||cands.slice().sort((a,b)=>(b.from||"").localeCompare(a.from||""))[0];
+  if(!pick)return null;
+  const site={...flotelSite(pick),flotelSource:pick.kilde,flotelUrl:pick.url};
+  const conf=proven.length?"sikker":cands.length===1?"trolig":"usikker";
+  const others=[...new Set(cands.filter(c=>c!==pick).map(c=>C.titleCase(c.felt)))];
+  const note=`${T} lå ${conf==="sikker"?"":"trolig "}ved ${C.titleCase(pick.felt)}${proven.length?", og flyreisene dine bekrefter det":""}.`+(others.length?` Kan også ha vært ${others.join(" eller ")}.`:"")+(bases.length&&!proven.length?` Flyreisen fra ${[...new Set(bases)].join("/")} passer med feltet.`:"");
+  return [{site,start:stay.start,end:stay.end,conf,flotel:fl,note}];
+}
+/* Hvor lå flotellen da? Svarene brukeren har gitt, som kan deles (felt og måned, aldri dato eller reise). */
+function flotelReports(){
+  const out=[];const seen=new Set();
+  for(const s of STAYS){const r=S.flotelAt[s.id];const fl=flotelOf(s.key);if(!r||!fl)continue;
+    const o={flotell:fl.name,felt:r.felt,maned:s.start.slice(0,7),kilde:"rapportert"};const k=JSON.stringify(o);if(!seen.has(k)){seen.add(k);out.push(o)}}
+  for(const [key,list] of EVID){const fl=flotelOf(key);if(!fl)continue;
+    for(const x of list){const site=placePos(x.key);const p=S.places[x.key];if(!site||!p)continue;
+      const o={flotell:fl.name,felt:p.label,maned:x.date.slice(0,7),kilde:"hjemreise fra flotell"};const k=JSON.stringify(o);if(!seen.has(k)){seen.add(k);out.push(o)}}}
+  return out;
+}
 function applyCodeList(){
   if(!D.facilities.length)return 0;let n=0;
   const byName=new Map(D.facilities.map(f=>[C.normName(f.name),f]));
@@ -338,7 +386,7 @@ function applyCodeList(){
     const p=S.places[C.placeKey(k)];if(!todo(p))continue;
     const e=CODES[k]||{};if(codeVed(e).length&&!e.sodirId)continue;
     const f=(e.sodirId&&D.facById.get(String(e.sodirId)))||byName.get(C.normName(e.navn||""))||looseName(e.navn);
-    if(!f)continue;
+    if(!f){if(FLOT.has(C.normName(e.navn||""))){p.link={type:"flotel",name:e.navn};p.auto=false;p.kind="installation";if(!p.labelEdited)p.label=C.titleCase(e.navn);n++}continue}
     p.link={type:"sodir",id:f.id};p.auto=false;p.kind="installation";if(!p.labelEdited)p.label=C.titleCase(f.name);n++;
   }
   for(const k in CODES){   // 2. «ligger ved»: boligrigg uten egen posisjon
@@ -355,6 +403,7 @@ function placeLinkText(p){
   if(l.type==="sodir"){const f=D.facById.get(l.id);return f?`${C.titleCase(f.name)} · ${f.moveable?"flyttbar":"fast"}`:"Sodir-innretning (ikke lastet)"}
   if(l.type==="manual")return `Manuell posisjon ${fmtPos(l.lat,l.lon)}`;
   if(l.type==="follow"){const o=S.places[l.key];return `Følger ${o?o.label:l.key}`}
+  if(l.type==="flotel")return "Flotell · plassering fra flotellregisteret";
   return "";
 }
 
@@ -394,8 +443,10 @@ async function prefetchForStays(stays){
 function resolveStay(stay,key=stay.key,depth=0){
   const ov=S.overrides[stay.id];
   if(ov&&depth===0)return [{site:{id:"O:"+stay.id,lat:ov.lat,lon:ov.lon,name:ov.label||labelOf(stay.key),kind:"manual"},start:stay.start,end:stay.end,conf:"manuell",note:"Posisjon satt manuelt for denne turen."}];
+  if(depth===0&&!(S.places[key]&&S.places[key].link&&S.places[key].link.type==="follow")){const fl=flotelOf(key);if(fl){const r=resolveFlotel(stay,key,fl);if(r)return r}}
   if(stay.turnback&&depth===0)return [{site:null,start:stay.start,end:stay.end,conf:"avbrutt",note:`Helikopteret returnerte til ${stay.legs[0].from} uten å lande offshore (trolig vær). Ingen overnatting.`}];
   const p=S.places[key];
+  if(p&&p.link&&p.link.type==="flotel")return [{site:null,start:stay.start,end:stay.end,conf:"ukjent",flotel:flotelOf(key),note:"Flotellregisteret har ingen kjent plassering som passer med datoen og heliporten. Velg hvor du var under."}];
   if(!p||!p.link)return [{site:null,start:stay.start,end:stay.end,conf:"ukjent",note:"Installasjonen er ikke koblet til Sodir eller en posisjon ennå."}];
   const l=p.link;
   if(l.type==="manual")return [{site:{id:"P:"+key,lat:l.lat,lon:l.lon,name:p.label,kind:"manual"},start:stay.start,end:stay.end,conf:"manuell",note:"Fast posisjon du har satt for installasjonen."}];
@@ -443,6 +494,7 @@ async function recompute(){
   syncPlaces();
   NEIGH=C.neighbours(S.legs,kindOf);
   const stays=allStays();
+  EVID=new Map();for(const s of stays)if(s.homeFrom){const k=C.placeKey(s.homeFrom);if(!EVID.has(k))EVID.set(k,[]);EVID.get(k).push({date:s.end,key:s.key})}
   STAYS=stays.map(s=>({...s,segs:resolveStay(s)}));
   renderAll();
   if(D.facilities.length){
@@ -636,6 +688,7 @@ function siteAt(key,date){
     const g=st.segs.find(g=>g.site&&g.start<=date&&date<=g.end)||st.segs.find(g=>g.site);
     if(g)return g.site;
   }
+  if(flotelOf(key)){const legs=S.legs.filter(l=>l.date===date&&[l.from,l.to].some(x=>x&&C.placeKey(x)===key));const r=resolveStay({id:"x",key,start:date,end:date,legs},key,0);const g=r.find(g=>g.site);if(g)return g.site}
   return null;
 }
 function stayMapItems(){
@@ -847,6 +900,17 @@ function stayDetail(s){
     html+=`<div class="small"><div class="muted" style="margin-bottom:3px">Reiser i loggen</div>${legs.map(line).join("")}</div>`;
   }
   if(!s.startKnown||!s.endKnown||s.over)html+=`<div class="note">${!s.startKnown?"Loggen mangler utreisen. ":""}${!s.endKnown?(s.ongoing?"Ingen hjemreise registrert ennå. ":"Loggen mangler hjemreisen. "):""}${s.long?(S.accepted[s.id]?"Over fem uker – du har godtatt oppholdet.":"Over fem uker offshore er svært uvanlig. Trolig mangler en hjemreise og en utreise i arket. Oppholdet telles ikke med i døgn før du godtar det."):s.over?"Lengre enn maks oppholdsperiode på 21 døgn, f.eks. på grunn av vær.":""}</div>`;
+  const fs=s.segs.find(g=>g.flotel);
+  if(fs){const fl=fs.flotel,cur=S.flotelAt[s.id];
+    const opts=[...new Set([...fl.entries.filter(e=>!e.utland).map(e=>e.felt),...Object.values(S.places).filter(o=>o.kind==="installation"&&o.link&&o.link.type==="sodir"&&!flotelOf(o.key)).map(o=>{const f=D.facById.get(o.link.id);return f&&!f.moveable?(f.belongsTo||f.name):""}).filter(Boolean)].map(x=>C.normName(x)))];
+    const bases=[];for(const l of s.legs||[])for(const x of [l&&l.from,l&&l.to])if(x&&kindOf(C.placeKey(x))==="base")bases.push(x);
+    const okReach=o=>{const site=flotelSite({felt:o,inst:o});if(!site)return true;return bases.every(b=>C.reachable(b,[site.lat,site.lon])!==false)};
+    const shown=opts.filter(o=>okReach(o)||(cur&&C.normName(cur.felt)===o));opts.length=0;opts.push(...shown);
+    if(fs.site&&fs.site.flotelSource)html+=`<div class="small muted">Kilde: ${fs.site.flotelUrl?`<a href="${h(fs.site.flotelUrl)}" target="_blank" rel="noopener">${h(fs.site.flotelSource)}</a>`:h(fs.site.flotelSource)}</div>`;
+    html+=`<div class="field"><label for="flotat">${fs.conf==="sikker"?"Stemmer ikke? ":""}Hvor lå ${h(C.titleCase(fl.name))} da du var der?</label>
+      <select class="input" id="flotat" data-id="${h(s.id)}"><option value="">${cur?"Fjern svaret mitt":"Velg felt …"}</option>${opts.map(o=>`<option value="${h(o)}"${cur&&C.normName(cur.felt)===o?" selected":""}>${h(C.titleCase(o))}</option>`).join("")}</select>
+      <div class="small muted">Svaret ditt brukes her med en gang. Del det gjerne via «Foreslå koder» i menyen, så blir flotellregisteret bedre for alle.</div></div>`;
+  }
   const p=S.places[s.key];const mob=s.segs.find(g=>g.site&&g.site.kind==="mobile");
   html+=`<div class="row">
     ${s.long?`<button class="btn small${S.accepted[s.id]?" ghost":""}" type="button" data-act="${S.accepted[s.id]?"unacceptlong":"acceptlong"}" data-id="${h(s.id)}">${S.accepted[s.id]?"Angre godkjenning":"Godta oppholdet"}</button>`:""}
@@ -1012,7 +1076,7 @@ async function handleFile(file){
     if(/\.json$/i.test(name)){
       const j=JSON.parse(await file.text());
       if(!["sokkelreiser","sokkelreise","offshorekart"].includes(j.app))throw new Error("JSON-filen er ikke en prosjektfil fra Sokkelreiser.");
-      S.legs=j.legs||[];S.places=j.places||{};S.manual=j.manual||[];S.overrides=j.overrides||{};S.accepted=j.accepted||{};S.sourceName=j.sourceName||name;
+      S.legs=j.legs||[];S.places=j.places||{};S.manual=j.manual||[];S.overrides=j.overrides||{};S.accepted=j.accepted||{};S.flotelAt=j.flotelAt||{};S.sourceName=j.sourceName||name;
       persist();toast("Prosjektfilen er lastet inn.");await recompute();fitToContent();return;
     }
     let tables,date1904=false;
@@ -1115,12 +1179,12 @@ document.addEventListener("click",async e=>{
   else if(act==="allyears"){S.ui.year=null;renderStays();updateMap();fitToContent()}
   else if(act==="csv")download("sokkelreiser-opphold.csv","﻿"+C.toCSV(stayTable()),"text/csv;charset=utf-8");
   else if(act==="copy")copyText(C.toCSV(stayTable(),"\t"));
-  else if(act==="save")download("sokkelreiser-prosjekt.json",JSON.stringify({app:"sokkelreiser",version:1,saved:new Date().toISOString(),sourceName:S.sourceName,legs:S.legs,places:S.places,manual:S.manual,overrides:S.overrides,accepted:S.accepted}),"application/json");
+  else if(act==="save")download("sokkelreiser-prosjekt.json",JSON.stringify({app:"sokkelreiser",version:1,saved:new Date().toISOString(),sourceName:S.sourceName,legs:S.legs,places:S.places,manual:S.manual,overrides:S.overrides,accepted:S.accepted,flotelAt:S.flotelAt}),"application/json");
   else if(act==="koder")download("koder.json",JSON.stringify({app:"sokkelreiser",version:1,koder:koderPayload()},null,2),"application/json");
   else if(act==="share"){
-    const k=koderPayload();if(!Object.keys(k).length){toast("Du har ingen koblinger å dele ennå.");return}
-    confirmDialog("Foreslå koder til kodelisten","Det som sendes er bare kodene og navnene de er koblet til (for eksempel «SKV → SKARV»). Ingen datoer, reiser, firma eller personopplysninger. Du åpner et ferdig utfylt forslag hos GitHub, og du bestemmer selv om du sender det.","Åpne forslag",()=>{
-      const body="Koder fra min logg og innretningene de hører til hos Sodir:\n\n```json\n"+JSON.stringify(k,null,2)+"\n```\n";
+    const k=koderPayload(),fr=flotelReports();if(!Object.keys(k).length&&!fr.length){toast("Du har ingen koblinger å dele ennå.");return}
+    confirmDialog("Foreslå koder og flotellplasseringer","Det som sendes er kodene og navnene de er koblet til (for eksempel «SKV → SKARV»), og hvilket felt en flotell lå ved i en gitt måned (for eksempel «Floatel Endurance · Skarv · 2026-03»). Ingen datoer, reiser, firma eller personopplysninger. Du åpner et ferdig utfylt forslag hos GitHub, og du bestemmer selv om du sender det.","Åpne forslag",()=>{
+      const body="Koder fra min logg og innretningene de hører til hos Sodir:\n\n```json\n"+JSON.stringify({koder:k,floteller:fr},null,2)+"\n```\n";
       const url="https://github.com/oyvindhn/sokkelreiser.no/issues/new?title="+encodeURIComponent("Forslag til kodelisten")+"&body="+encodeURIComponent(body);
       if(!window.open(url,"_blank","noopener"))copyText(JSON.stringify(k,null,2));
     });
@@ -1142,6 +1206,12 @@ document.addEventListener("click",async e=>{
   else if(act==="setbase"){const p=S.places[b.dataset.key];p.kind="base";p.kindEdited=true;p.link=null;p.auto=false;if(!p.labelEdited)p.label=p.raw;persist();recompute()}
   else if(act==="setinst"){const p=S.places[b.dataset.key];p.kind="installation";p.kindEdited=true;if(!p.labelEdited)p.label=p.nameHint||p.raw;persist();recompute()}
   else if(act==="pickplace")startPick("place",b.dataset.key,"Klikk der installasjonen ligger");
+});
+document.addEventListener("change",e=>{
+  const t=e.target;if(!t||t.id!=="flotat")return;
+  const st=STAYS.find(x=>x.id===t.dataset.id);
+  if(t.value)S.flotelAt[t.dataset.id]={felt:t.value,inst:""};else delete S.flotelAt[t.dataset.id];
+  persist();recompute();toast(t.value?"Takk! Plasseringen er lagret.":"Svaret ditt er fjernet.");
 });
 document.addEventListener("keydown",e=>{
   if((e.key==="Enter"||e.key===" ")&&e.target.classList&&e.target.classList.contains("stay")){e.preventDefault();selectStay(e.target.dataset.stay)}

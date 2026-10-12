@@ -601,6 +601,30 @@ function flightFit(pos,hints){
   const d=Math.min(...hints.map(h=>haversineKm(h.base,pos)));
   return d>650?-1:0;
 }
+/* Heliporter som flyr til sokkelen. En installasjon nås fra heliportene som ligger nærmest den;
+   en heliport langt lenger unna enn den nærmeste flyr ikke dit (BNN flyr ikke til Castberg). */
+const SHELF_BASES=["SVG","BGO","FRO","KSU","BNN","HFT"];
+function nearestBaseKm(pos){return Math.min(...SHELF_BASES.map(b=>haversineKm(HELIPORTS[b],pos)))}
+function reachable(baseCode,pos){
+  const b=heliport(baseCode);if(!b||!pos)return null;               // ukjent heliport: kan ikke avgjøre
+  if(!SHELF_BASES.some(k=>HELIPORTS[k][0]===b[0]&&HELIPORTS[k][1]===b[1]))return null;
+  const d=haversineKm(b,pos),n=nearestBaseKm(pos);
+  return d<=n*1.5+100;
+}
+/* Flotellregister: perioder uten slutt varer til neste kjente oppdrag, perioder uten start begynner etter forrige. */
+function flotelPeriods(entries){
+  const L=(entries||[]).map((e,i)=>({...e,i})).sort((a,b)=>(a.fra||a.til||"").localeCompare(b.fra||b.til||""));
+  return L.map((e,k)=>{const nx=L[k+1],pv=L[k-1];
+    return {...e,from:e.fra||(pv?(pv.til||pv.fra||""):""),to:e.til||(nx?(nx.fra?addDays(nx.fra,-1):nx.til||""):""),open:!e.til}});
+}
+/* Mulige plasseringer for en flotell en gitt dato. bases: heliportkoder brukt på turen. pos(e) -> [lat,lon] eller null. */
+function flotelCandidates(entries,date,bases,pos){
+  return flotelPeriods(entries).filter(e=>(!e.from||date>=e.from)&&(!e.to||date<=e.to)).map(e=>{
+    const p=e.utland?null:pos(e);
+    const r=bases.map(b=>reachable(b,p)).filter(x=>x!=null);
+    return {...e,pos:p,reach:r.length?r.every(Boolean):null};
+  }).filter(e=>!e.utland&&e.reach!==false);
+}
 /* Velger beste kandidat når den skiller seg tydelig ut. cands: [{sc,lat,lon}] sortert synkende. */
 function pickAuto(cands,{min=.5,margin=.08,sameKm=5}={}){
   const [a,b]=cands;if(!a||a.sc<min)return null;
@@ -616,7 +640,7 @@ function toCSV(rows,delim=";"){
   return rows.map(r=>r.map(v=>{v=v==null?"":String(v);return /[";\n,\t]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(delim)).join("\r\n");
 }
 
-const api={DAY,pad,isoFromDate,toDay,fromDay,addDays,diffDays,todayIso,parseDate,fmtDate,clean,normName,tokens,nameScore,parseCSV,readXlsx,
+const api={SHELF_BASES,reachable,flotelPeriods,flotelCandidates,DAY,pad,isoFromDate,toDay,fromDay,addDays,diffDays,todayIso,parseDate,fmtDate,clean,normName,tokens,nameScore,parseCSV,readXlsx,
   FIELDS,findHeaderRow,guessColumns,analyseTables,buildLegs,placeKey,derivePlaces,buildStays,normFacility,normWellbore,rowsToObjects,
   buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,nameAt,fieldWord,discoveryName,shortOperator,prospectFromHistory,nameSite,titleCase,toCSV,isSodirWellbore,isSodirFacility,
   activityByFacility,dateFit,neighbours,pickAuto,heliport,flightHints,flightFit};
