@@ -70,6 +70,8 @@ def build_site():
     for f in (ROOT / "static").iterdir():
         if f.is_file():
             shutil.copy2(f, OUT / f.name)
+        elif f.is_dir():
+            shutil.copytree(f, OUT / f.name, ignore=shutil.ignore_patterns("config.php"))
     shutil.copy2(ROOT / "data" / "koder.json", OUT / "koder.json")
     shutil.copy2(ROOT / "data" / "floteller.json", OUT / "floteller.json")
     # versjon.txt: brukes til å kontrollere at publiseringen faktisk havnet der domenet peker

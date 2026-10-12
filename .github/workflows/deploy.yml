@@ -23,6 +23,9 @@ jobs:
       - name: Test
         run: node --test tests/*.test.js
 
+      - name: Test API for felles kodeliste (PHP)
+        run: bash tests/koder_api.sh
+
       - name: Bygg
         run: python3 build.py
 

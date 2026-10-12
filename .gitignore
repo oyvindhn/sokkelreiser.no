@@ -4,3 +4,4 @@ node_modules/
 __pycache__/
 tests/output/
 .DS_Store
+static/api/config.php

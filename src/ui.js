@@ -324,7 +324,25 @@ function koderPayload(){
 }
 /* Kodeliste: koder som tidligere er koblet (koder.json ligger ved siden av siden og kan utvides). */
 let CODES={};
-async function loadCodeList(){try{const r=await fetch("koder.json",{cache:"no-cache"});if(!r.ok)return;const j=await r.json();CODES=(j&&j.koder)||{}}catch(_){}}
+async function loadCodeList(){
+  try{const r=await fetch("koder.json",{cache:"no-cache"});if(!r.ok)return;const j=await r.json();CODES=(j&&j.koder)||{}}catch(_){}
+  await loadSharedCodes();
+}
+/* Felles kodeliste fra api/koder.php: bare koder flere uavhengige brukere er enige om. Den kuraterte listen vinner alltid, og tjenesten kan mangle. */
+async function loadSharedCodes(){
+  try{
+    const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),4000);
+    const r=await fetch("api/koder.php",{cache:"no-store",signal:ctl.signal});clearTimeout(t);
+    if(!r.ok)return;const j=await r.json();
+    for(const [k,e] of Object.entries(j.koder||{})){if(!CODES[k]&&e&&e.navn){const {n,...rest}=e;CODES[k]={...rest,delt:true}}}
+    for(const f of j.floteller||[]){
+      const key=C.normName(f.flotell||"");if(!key||!f.felt||!/^\d{4}-\d{2}$/.test(f.maned||""))continue;
+      if(!FLOT.has(key))FLOT.set(key,{name:C.titleCase(f.flotell),entries:[]});
+      const [y,m]=f.maned.split("-").map(Number);
+      FLOT.get(key).entries.push({felt:f.felt,fra:f.maned+"-01",til:new Date(Date.UTC(y,m,0)).toISOString().slice(0,10),kilde:`Meldt av ${f.n} brukere (${f.maned})`,delt:true});
+    }
+  }catch(_){}
+}
 /* «SKARV» i kodelisten skal treffe «SKARV FPSO» hos Sodir. Faste og i drift foretrekkes. */
 function looseName(navn){
   const n=C.normName(navn||"");if(!n)return null;
@@ -1410,10 +1428,12 @@ document.addEventListener("click",async e=>{
   }
   else if(act==="share"){
     const k=koderPayload(),fr=flotelReports();if(!Object.keys(k).length&&!fr.length){toast("Du har ingen koblinger å dele ennå.");return}
-    confirmDialog("Foreslå koder og flotellplasseringer","Det som sendes er kodene og navnene de er koblet til (for eksempel «SKV → SKARV»), og hvilket felt en flotell lå ved i en gitt måned (for eksempel «Floatel Endurance · Skarv · 2026-03»). Ingen datoer, reiser, firma eller personopplysninger. Du åpner et ferdig utfylt forslag hos GitHub, og du bestemmer selv om du sender det.","Åpne forslag",()=>{
-      const body="Koder fra min logg og innretningene de hører til hos Sodir:\n\n```json\n"+JSON.stringify({koder:k,floteller:fr},null,2)+"\n```\n";
-      const url="https://github.com/oyvindhn/sokkelreiser.no/issues/new?title="+encodeURIComponent("Forslag til kodelisten")+"&body="+encodeURIComponent(body);
-      if(!window.open(url,"_blank","noopener"))copyText(JSON.stringify(k,null,2));
+    confirmDialog("Send forslag til kodelisten","Det som sendes er kodene og navnene de er koblet til (for eksempel «SKV → SKARV»), og hvilket felt en flotell lå ved i en gitt måned. Ingen datoer, reiser, firma eller personopplysninger. Forslagene legges til i en felles liste. De brukes først når flere uavhengige brukere er enige, og de kan aldri slette eller endre det som allerede står der.","Send",async()=>{
+      try{
+        const r=await fetch("api/koder.php",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({koder:k,floteller:fr})});
+        if(r.ok){const j=await r.json();toast(j.nye?`Takk! ${j.nye} nye forslag er sendt.`:"Takk! Forslagene var allerede sendt.");return}
+        throw new Error(String(r.status));
+      }catch(e){copyText(JSON.stringify({koder:k,floteller:fr},null,2));toast("Fikk ikke sendt forslagene akkurat nå. De er kopiert, så du kan sende dem senere.")}
     });
   }
   else if(act==="sodir"){const ok=await loadFacilities(true);if(ok){await Promise.all([loadAliases(true),loadActivity(true)]);applyCodeList();autoLink();persist();await recompute();toast("Sodir-data er oppdatert.")}else toast("Fikk ikke kontakt med Sodir.")}

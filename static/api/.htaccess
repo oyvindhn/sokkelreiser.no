@@ -1,0 +1,5 @@
+# Konfigurasjon og eventuell SQLite-fil skal aldri kunne hentes direkte
+<FilesMatch "^(config(\.sample)?\.php|.*\.sqlite)$">
+  Require all denied
+</FilesMatch>
+Options -Indexes
