@@ -804,6 +804,47 @@ function histogram(byYear,sel){
       ${(all.length<=12||i%Math.ceil(all.length/10)===0||sel===y)?`<text x="${(x+bw/2).toFixed(1)}" y="${H-2}" text-anchor="middle">${all.length>8?"’"+String(y).slice(2):y}</text>`:""}</g>`}).join("");
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Døgn offshore per år"><line class="axis" x1="0" x2="${W}" y1="${H-13.5}" y2="${H-13.5}"/>${bars}</svg>`;
 }
+/* «Dine tall»: flytid og avstand fra loggen. Luftlinje mellom heliport og installasjon, så tallene er litt lave. */
+const MOON_KM=384400,EQUATOR_KM=40075;
+function flightStats(y){
+  let min=0,timed=0,flights=0,km=0,measured=0,longest=null;
+  for(const l of S.legs){
+    if(l.cancelled||!l.date||!l.from||!l.to)continue;
+    if(y&&l.date.slice(0,4)!==String(y))continue;
+    flights++;
+    const d=C.minutesOf?C.minutesOf(l.dep):null,r=C.minutesOf?C.minutesOf(l.arr):null;
+    if(d!=null&&r!=null){let m=r-d;if(m<0)m+=1440;if(m>=5&&m<=300){min+=m;timed++}}
+    const a=siteAt(C.placeKey(l.from),l.date),b=siteAt(C.placeKey(l.to),l.date);
+    if(a&&b&&a.id!==b.id){const k=C.haversineKm([a.lat,a.lon],[b.lat,b.lon]);km+=k;measured++;if(!longest||k>longest.km)longest={km:k,from:a.name,to:b.name}}
+  }
+  return {hours:min/60,timed,flights,km,measured,longest};
+}
+const nf=(v,d=0)=>v.toLocaleString("nb-NO",{minimumFractionDigits:d,maximumFractionDigits:d});
+const nameOf=x=>/^[A-ZÆØÅ0-9]{2,4}$/.test(String(x))?String(x):C.titleCase(String(x));
+function funHtml(y){
+  const f=flightStats(y);if(!f.flights||!f.measured)return "";
+  const moon=f.km/MOON_KM,eq=f.km/EQUATOR_KM,laps=Math.floor(eq),part=eq-laps;
+  const R=26,CIRC=2*Math.PI*R;
+  const mx=14+Math.max(.02,Math.min(1,moon))*(286-28);
+  const ring=`<svg class="fun-ring" viewBox="0 0 64 64" role="img" aria-label="${nf(eq,1)} ganger rundt ekvator"><circle cx="32" cy="32" r="${R}" fill="none" stroke="var(--line)" stroke-width="6"/>
+    <circle cx="32" cy="32" r="${R}" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(CIRC*(laps>0?part:Math.max(part,.02))).toFixed(1)} ${CIRC.toFixed(1)}" transform="rotate(-90 32 32)"/>
+    <text x="32" y="${laps>0?31:35}" text-anchor="middle" class="fun-rt">${laps>0?laps+"×":nf(eq*100,0)+"%"}</text>${laps>0?`<text x="32" y="43" text-anchor="middle" class="fun-rs">+${nf(part*100,0)} %</text>`:""}</svg>`;
+  const track=`<svg class="fun-moon" viewBox="0 0 300 44" role="img" aria-label="${nf(moon*100,1)} prosent av veien til månen">
+    <circle cx="14" cy="22" r="9" fill="var(--accent)" opacity=".85"/><circle cx="286" cy="22" r="8" fill="var(--faint)"/><circle cx="283" cy="19" r="2" fill="var(--panel)" opacity=".5"/>
+    <line x1="24" y1="22" x2="276" y2="22" stroke="var(--line)" stroke-width="2" stroke-dasharray="2 5" stroke-linecap="round"/>
+    <line x1="24" y1="22" x2="${mx.toFixed(1)}" y2="22" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round"/>
+    <polygon points="0,-6 13,0 0,6 3.5,0" fill="var(--ink)" stroke="var(--panel-2)" stroke-width="1.5" stroke-linejoin="round" transform="translate(${(mx-3).toFixed(1)} 22)"/></svg>`;
+  return `<div class="fun"><p class="eyebrow"><span>Dine tall</span><span style="text-transform:none;letter-spacing:0">${y?y:"alle år"}</span></p>
+    <div class="fun-grid">
+      <div><b>${nf(f.hours,f.hours<100?1:0)}</b><span>timer i helikopter${f.timed<f.flights?` <small>(${f.timed} av ${f.flights} turer har tid)</small>`:""}</span></div>
+      <div><b>${nf(f.flights)}</b><span>flyvninger</span></div>
+      <div><b>${nf(f.km)}</b><span>km i luften <small>(minst)</small></span></div>
+      ${f.longest?`<div><b>${nf(f.longest.km)}</b><span>km lengste flyging <small>${h(nameOf(f.longest.from))} – ${h(nameOf(f.longest.to))}</small></span></div>`:""}
+    </div>
+    <div class="fun-row">${track}<div class="fun-cap"><b>${nf(moon*100,moon<.1?2:1)} %</b> av veien til månen<small>${nf(MOON_KM-f.km)} km igjen</small></div></div>
+    <div class="fun-row">${ring}<div class="fun-cap"><b>${nf(eq,1)} ganger</b> rundt ekvator<small>${laps?`${laps} hele runder`:"ikke en hel runde ennå"}</small></div></div>
+  </div>`;
+}
 function renderStays(){
   const v=$("view-stays");
   if(!STAYS.length){v.innerHTML=emptyState();bindDrop($("drop"));return}
@@ -821,6 +862,7 @@ function renderStays(){
   if(pending)html+=`<div class="answer">${pending} ${plural(pending,"opphold","opphold")} er over fem uker og telles ikke med i døgn før du har sjekket og godtatt ${pending>1?"dem":"det"}. Trolig mangler en reise i arket.</div>`;
   if(need)html+=`<div class="answer">${need} ${plural(need,"installasjon","installasjoner")} i loggen kunne ikke kobles sikkert automatisk.${D.status==="err"?" Sodir svarer ikke akkurat nå, men du kan plassere dem i kartet selv eller laste inn Sodir-data som fil.":""} <button class="linkish" type="button" data-act="placestab">Se forslag</button></div>`;
   else if(D.status==="err"&&unknown)html+=`<div class="answer">Fikk ikke kontakt med Sodir, så posisjonene til flyttbare rigger mangler. Prøv igjen senere, eller last inn Sodir sin brønnbanetabell som CSV via <b>Importer</b>.</div>`;
+  html+=funHtml(y);
   html+=`<div class="hist"><p class="eyebrow"><span>Døgn offshore per år</span>${y?`<button class="linkish" type="button" data-act="allyears">Vis alle år</button>`:`<span style="text-transform:none;letter-spacing:0">Trykk på et år for å filtrere</span>`}</p>${histogram(byYear,y)}</div>`;
   const groups=new Map();for(const s of vis.slice().reverse()){const yr=s.start.slice(0,4);if(!groups.has(yr))groups.set(yr,[]);groups.get(yr).push(s)}
   for(const [yr,list] of groups){
