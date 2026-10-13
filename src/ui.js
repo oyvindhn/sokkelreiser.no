@@ -733,7 +733,7 @@ class Chart{
     ctx.restore();
   }
   hit(x,y){let best=null,bd=1e9;for(const h of this.hits){const d=Math.hypot(h.x-x,h.y-y);if(d<=h.r&&d<bd){bd=d;best=h.m}}return best}
-  zoomAt(f,x=this.W/2,y=this.H/2){const [la,lo]=this.toGeo(x,y);this.z=Math.max(1.6,Math.min(13,this.z+Math.log2(f)));const s=this.s;this.cx=wx(lo)-(x-this.W/2)/s;this.cy=wy(la)-(y-this.H/2)/s;this.req()}
+  zoomAt(f,x=this.W/2,y=(this.H-(this.inset||0))/2){const [la,lo]=this.toGeo(x,y);this.z=Math.max(1.6,Math.min(13,this.z+Math.log2(f)));const s=this.s;this.cx=wx(lo)-(x-this.W/2)/s;this.cy=wy(la)-(y-this.H/2)/s;this.req()}
   animateTo(cx,cy,z){
     const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
     if(reduce){this.cx=cx;this.cy=cy;this.z=z;this.req();return}
@@ -753,12 +753,12 @@ class Chart{
   bind(){
     const c=this.c;let moved=false,last=null,pinch=null;
     c.addEventListener("pointerdown",e=>{c.setPointerCapture(e.pointerId);this.pointers.set(e.pointerId,[e.offsetX,e.offsetY]);moved=false;last=[e.offsetX,e.offsetY];
-      if(this.pointers.size===2){const [a,b]=[...this.pointers.values()];pinch={d:Math.hypot(a[0]-b[0],a[1]-b[1])}}});
+      if(this.pointers.size===2){const [a,b]=[...this.pointers.values()];pinch={d:Math.hypot(a[0]-b[0],a[1]-b[1]),mx:(a[0]+b[0])/2,my:(a[1]+b[1])/2}}});
     c.addEventListener("pointermove",e=>{
       const p=[e.offsetX,e.offsetY];
       if(this.pointers.has(e.pointerId)){
         this.pointers.set(e.pointerId,p);
-        if(this.pointers.size===2&&pinch){const [a,b]=[...this.pointers.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1]);this.zoomAt(d/pinch.d,(a[0]+b[0])/2,(a[1]+b[1])/2);pinch.d=d;moved=true;return}
+        if(this.pointers.size===2&&pinch){const [a,b]=[...this.pointers.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1]);const mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2;this.zoomAt(d/pinch.d,mx,my);this.cx-=(mx-pinch.mx)/this.s;this.cy-=(my-pinch.my)/this.s;pinch.d=d;pinch.mx=mx;pinch.my=my;moved=true;return}
         const dx=p[0]-last[0],dy=p[1]-last[1];if(Math.abs(dx)+Math.abs(dy)>2||moved){moved=true;c.classList.add("dragging");this.cx-=dx/this.s;this.cy-=dy/this.s;last=p;this.req();this.cb.hover&&this.cb.hover(null,p)}
       }else{const m=this.hit(...p);this.cb.hover&&this.cb.hover(m,p,this.toGeo(...p))}
     });
