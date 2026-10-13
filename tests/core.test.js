@@ -411,8 +411,7 @@ test("merker: terskler, hav og fremdrift", () => {
   assert.ok(b.d100.date, "100 døgn");
   assert.equal(b.d500.date, null);
   assert.equal(b.d500.have, 133);
-  assert.ok(b["s-alle"].date && b.polar.date && b.snudd.date && b.i5.date && b.t1.date);
-  assert.equal(b.lang, undefined);
+  assert.ok(b["s-alle"].date && b.polar.date && b.snudd.date && b.i5.date && b.t1.date && b.lang.date);
   assert.equal(b.i10.date, null);
   assert.equal(b.f50.date, null);
   assert.equal(b.f50.have, 20);

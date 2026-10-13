@@ -728,6 +728,7 @@ function badges({stays,legs,days=s=>s.days}){
   {let cumK={},best=0;const atK={};for(const s of st){const k=s.key,b=cumK[k]||0,c=b+days(s);cumK[k]=c;if(c>best)best=c;for(const t of [100,500])if(b<t&&c>=t&&!atK[t])atK[t]=addDays(s.start,Math.min(t-b,s.days||0))}
     for(const t of [100,500])add("s"+t,"tur","★",t===100?"Stamgjest":"Fast inventar",`${t} døgn på samme installasjon`,atK[t],Math.min(best,t),t)}
   // turer og steder
+  const long=st.find(s=>s.days>=21);add("lang","tur","21","21 døgn i strekk","Første gang du sto tre uker offshore",long&&long.start);
   const tb=stays.filter(s=>s.turnback).sort((a,b)=>a.start<b.start?-1:1)[0];add("snudd","tur","↺","Helikopteret snudde","Helikopteret måtte snu før landing",tb&&tb.start);
   const flo=st.find(s=>(s.segs||[]).some(g=>g.flotel));add("flotell","tur","F","Flotell","Bodde på en flotell",flo&&flo.start);
   const seen=[],rigs=[];let i5=null,i10=null,r3=null;
