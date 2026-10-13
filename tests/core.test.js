@@ -415,4 +415,19 @@ test("merker: terskler, hav og fremdrift", () => {
   assert.equal(b.i10.date, null);
   assert.equal(b.f50.date, null);
   assert.equal(b.f50.have, 20);
+  // trappetrinn: bare neste trinn i hver serie vises, resten telles som skjulte
+  const { shown, hidden } = C.visibleBadges(Object.values(b));
+  const ids = shown.map(x => x.id);
+  assert.ok(ids.includes("d100") && ids.includes("d500") && !ids.includes("d1000") && !ids.includes("d2000"));
+  assert.ok(ids.includes("f50") && !ids.includes("f100"));
+  assert.ok(ids.includes("y5") && !ids.includes("y10") && !ids.includes("y30") && !ids.includes("y40"));
+  assert.ok(ids.includes("i10") && ids.includes("i5"));
+  assert.equal(hidden, 2 + 3 + 4);
+});
+test("hemmelige merker vises ikke før de er oppnådd", () => {
+  const st = [{ key: "K", start: "2024-01-01", end: "2024-01-15", days: 14, segs: [{ site: { lat: 58 } }] }];
+  const all = C.badges({ stays: st, legs: [] });
+  const v = C.visibleBadges(all);
+  assert.ok(!v.shown.some(x => x.id === "snudd"));
+  assert.ok(v.hidden >= 1);
 });
