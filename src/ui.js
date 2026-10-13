@@ -762,7 +762,7 @@ class Chart{
         const dx=p[0]-last[0],dy=p[1]-last[1];if(Math.abs(dx)+Math.abs(dy)>2||moved){moved=true;c.classList.add("dragging");this.cx-=dx/this.s;this.cy-=dy/this.s;last=p;this.req();this.cb.hover&&this.cb.hover(null,p)}
       }else{const m=this.hit(...p);this.cb.hover&&this.cb.hover(m,p,this.toGeo(...p))}
     });
-    const up=e=>{const wasDown=this.pointers.has(e.pointerId);this.pointers.delete(e.pointerId);if(this.pointers.size<2)pinch=null;c.classList.remove("dragging");
+    const up=e=>{const wasDown=this.pointers.has(e.pointerId);this.pointers.delete(e.pointerId);if(this.pointers.size<2)pinch=null;if(this.pointers.size===1)last=[...this.pointers.values()][0];/* fingeren som blir igjen skal ikke hoppe til gammel startposisjon */c.classList.remove("dragging");
       if(wasDown&&!moved&&e.type==="pointerup"){const p=[e.offsetX,e.offsetY];this.cb.click&&this.cb.click(this.hit(...p),this.toGeo(...p))}};
     c.addEventListener("pointerup",up);c.addEventListener("pointercancel",up);
     c.addEventListener("pointerleave",()=>this.cb.hover&&this.cb.hover(null,null));
