@@ -1530,8 +1530,8 @@ function drawCard(st){
   { // høytider: julaften først, så de andre
     const hol=C.holidaysOffshore(STAYS).map(hd=>({...hd,hits:st.y?hd.hits.filter(x=>x.year===st.y):hd.hits})).filter(hd=>hd.hits.length);
     if(hol.length){const jul=hol.find(hd=>hd.id==="jul"),rest=hol.filter(hd=>hd!==jul);
-      if(career)tiles.splice(2,0,jul?[jul.hits.length+"×","julaften offshore",rest.map(hd=>hd.hits.length+"× "+({nyttar:"nyttår",paske:"påske",mai17:"17. mai",sankthans:"sankthans"}[hd.id]||hd.name)).slice(0,2).join(" · ")]:[hol[0].hits.length+"×",hol[0].name.toLowerCase()+" offshore",rest.map(hd=>hd.hits.length+"× "+hd.name.toLowerCase()).slice(0,2).join(" · ")]);
-      else{const SH={jul:"Jul",nyttar:"Nyttår",paske:"Påske",mai17:"17. mai",sankthans:"Sankthans"},list=jul?[jul,...rest]:hol;
+      if(career)tiles.splice(2,0,jul?[jul.hits.length+"×","julaften offshore",rest.map(hd=>hd.hits.length+"× "+({nyttar:"nyttår",paske:"påske",mai17:"17. mai"}[hd.id]||hd.name)).slice(0,2).join(" · ")]:[hol[0].hits.length+"×",hol[0].name.toLowerCase()+" offshore",rest.map(hd=>hd.hits.length+"× "+hd.name.toLowerCase()).slice(0,2).join(" · ")]);
+      else{const SH={jul:"Jul",nyttar:"Nyttår",paske:"Påske",mai17:"17. mai"},list=jul?[jul,...rest]:hol;
         tiles.splice(2,0,[list.slice(0,2).map((hd,i)=>i?SH[hd.id].toLowerCase().replace(/^17/,"17"):SH[hd.id]).join(" + "),list.length>2?`og ${list.length-2} til offshore`:"feiret offshore",labelOf(list[0].hits[0].stay.key)])}}
   }
   if(st.top&&st.insts.size>1)tiles.push([st.top.days+" døgn","mest tid på",st.top.name]);
@@ -1585,6 +1585,14 @@ function holidaysHtml(y){
   return `<div><p class="eyebrow"><span>Høytider offshore</span>${total?`<span style="text-transform:none;letter-spacing:0">${total} ${plural(total,"gang","ganger")}</span>`:""}</p>
     ${rows||`<p class="small muted" style="margin:0">${y?`Hjemme i alle høytidene i ${y}.`:"Ingen høytider offshore ennå."}</p>`}</div>`;
 }
+function recordsHtml(y){
+  const st=STAYS.filter(s=>!s.turnback&&(!y||+s.start.slice(0,4)===y));
+  if(!st.length)return "";
+  const L=st.reduce((m,s)=>countDays(s)>countDays(m)?s:m,st[0]);
+  if(!countDays(L))return "";
+  return `<div><p class="eyebrow"><span>Lengste tur</span></p>
+    <div class="hol"><span class="hol-n">${countDays(L)}</span><span class="hol-name">${h(labelOf(L.key))}</span><span class="hol-det">${fmtMonth(L.start)}</span></div></div>`;
+}
 function badgesHtml(y){
   const all=C.badges({stays:STAYS,legs:S.legs,days:countDays});
   const {shown,hidden}=C.visibleBadges(all);
@@ -1612,6 +1620,7 @@ function renderWrap(){
     <div class="card-prev"><img id="cardImg" alt="${y?`Mitt år offshore ${y}`:"Min offshorekarriere"}"></div>
     <div class="wrap-actions"><button class="btn accent" type="button" id="cardShare" hidden>Del …</button><button class="btn ghost" type="button" id="cardSave">Last ned bilde</button></div>
     <p class="small muted" style="margin:0">Kortet lages her i nettleseren. Ingenting sendes noe sted før du selv deler det.</p>
+    ${recordsHtml(y)}
     ${holidaysHtml(y)}
     ${badgesHtml(y)}
     ${funHtml(y)}`;

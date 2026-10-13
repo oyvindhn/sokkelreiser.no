@@ -398,7 +398,7 @@ test("høytider offshore: utreise teller, hjemreise samme dag teller ikke", () =
   assert.deepEqual(h.nyttar, [2023, 2024]);
   assert.deepEqual(h.mai17, [2025]);
   assert.deepEqual(h.paske, [2025]);
-  assert.deepEqual(h.sankthans, []);
+  assert.equal(h.sankthans, undefined, "sankthans er ikke med");
 });
 test("merker: terskler, hav og fremdrift", () => {
   const site = (lat, kind = "fixed", facilityId = "") => ({ lat, lon: 3, kind, facilityId });
@@ -411,18 +411,20 @@ test("merker: terskler, hav og fremdrift", () => {
   assert.ok(b.d100.date, "100 døgn");
   assert.equal(b.d500.date, null);
   assert.equal(b.d500.have, 133);
-  assert.ok(b["s-alle"].date && b.polar.date && b.lang.date && b.snudd.date && b.i5.date);
+  assert.ok(b["s-alle"].date && b.polar.date && b.snudd.date && b.i5.date && b.t1.date);
+  assert.equal(b.lang, undefined);
   assert.equal(b.i10.date, null);
   assert.equal(b.f50.date, null);
   assert.equal(b.f50.have, 20);
   // trappetrinn: bare neste trinn i hver serie vises, resten telles som skjulte
   const { shown, hidden } = C.visibleBadges(Object.values(b));
   const ids = shown.map(x => x.id);
-  assert.ok(ids.includes("d100") && ids.includes("d500") && !ids.includes("d1000") && !ids.includes("d2000"));
+  assert.ok(ids.includes("d100") && ids.includes("d365") && !ids.includes("d500") && !ids.includes("d1000") && !ids.includes("d5000"));
   assert.ok(ids.includes("f50") && !ids.includes("f100"));
   assert.ok(ids.includes("y5") && !ids.includes("y10") && !ids.includes("y30") && !ids.includes("y40"));
   assert.ok(ids.includes("i10") && ids.includes("i5"));
-  assert.equal(hidden, 2 + 3 + 4);
+  assert.ok(ids.includes("s100") && !ids.includes("s500"));
+  assert.equal(hidden, 4 + 4 + 4 + 1);
 });
 test("hemmelige merker vises ikke før de er oppnådd", () => {
   const st = [{ key: "K", start: "2024-01-01", end: "2024-01-15", days: 14, segs: [{ site: { lat: 58 } }] }];
