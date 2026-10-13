@@ -688,7 +688,6 @@ const HOLIDAYS=[
   {id:"nyttar",name:"Nyttårsaften",days:y=>[y+"-12-31"]},
   {id:"paske",name:"Påske",days:y=>{const e=easterSunday(y);return [-3,-2,-1,0,1].map(n=>addDays(e,n))}},
   {id:"mai17",name:"17. mai",days:y=>[y+"-05-17"]},
-  {id:"sankthans",name:"Sankthansaften",days:y=>[y+"-06-23"]},
 ];
 /* Offshore på en dag = kvelden tilbringes offshore: utreise den dagen teller, hjemreise den dagen teller ikke. */
 function offshoreOn(s,d){if(s.turnback)return false;const end=s.end||todayIso();return s.start<=d&&d<end}
@@ -703,17 +702,18 @@ function holidaysOffshore(stays){
 function seaOf(lat){return lat>=69.5?"barents":lat>=62?"norske":"nord"}
 /* Merker. stays: oppholdene med segs/site, legs: reisene, days(s): døgn som teller.
    -> [{id,group,sym,label,desc,date|null,have,need}] Ulåste har date=null og evt. fremdrift (have/need). */
+const DAYS_STEPS=[100,365,500,1000,2000,5000];
 function badges({stays,legs,days=s=>s.days}){
   const st=stays.filter(s=>!s.turnback).slice().sort((a,b)=>a.start<b.start?-1:a.start>b.start?1:0);
   const B=[];const add=(id,group,sym,label,desc,date,have,need)=>B.push({id,group,sym,label,desc,date:date||null,have:have??null,need:need??null});
   // døgn offshore
-  let cum=0;const at={};for(const s of st){const b=cum;cum+=days(s);for(const t of [100,500,1000,2000])if(b<t&&cum>=t&&!at[t])at[t]=addDays(s.start,Math.min(t-b,s.days||0))}
-  for(const t of [100,500,1000,2000])add("d"+t,"døgn",t>=1000?(t/1000)+"k":String(t),`${t>=1000?(t/1000)+" 000":t} døgn`,`${t>=1000?(t/1000)+" 000":t} døgn offshore`,at[t],Math.min(cum,t),t);
+  let cum=0;const at={};for(const s of st){const b=cum;cum+=days(s);for(const t of DAYS_STEPS)if(b<t&&cum>=t&&!at[t])at[t]=addDays(s.start,Math.min(t-b,s.days||0))}
+  for(const t of DAYS_STEPS)add("d"+t,"døgn",t>=1000?(t/1000)+"k":String(t),`${t>=1000?(t/1000)+" 000":t} døgn`,`${t>=1000?(t/1000)+" 000":t} døgn offshore`,at[t],Math.min(cum,t),t);
   // helikopterturer
   const fl=legs.filter(l=>!l.cancelled&&l.date&&l.from&&l.to).map(l=>l.date).sort();
-  for(const t of [50,100,250,500])add("f"+t,"fly",String(t),`${t} flyturer`,`${t} helikopterturer`,fl[t-1],Math.min(fl.length,t),t);
+  for(const t of [50,100,250,500,1000])add("f"+t,"fly",String(t),`${t} flyturer`,`${t} helikopterturer`,fl[t-1],Math.min(fl.length,t),t);
   // høytider
-  const hol=holidaysOffshore(stays);const sym={jul:"✶",nyttar:"✷",paske:"✿",mai17:"17/5",sankthans:"☼"};
+  const hol=holidaysOffshore(stays);const sym={jul:"✶",nyttar:"✷",paske:"✿",mai17:"17/5"};
   for(const h of hol)add("h-"+h.id,"høytid",sym[h.id],`${h.name} offshore`,`Var offshore ${h.name==="Påske"?"i påsken":h.name==="17. mai"?"17. mai":h.name.toLowerCase()}`,h.hits[0]&&h.hits[0].date);
   // havområder og nord
   const first={};let polar=null;
@@ -723,8 +723,12 @@ function badges({stays,legs,days=s=>s.days}){
   add("s-barents","hav","B","Barentshavet","Opphold i Barentshavet",first.barents);
   add("s-alle","hav","3","Alle tre hav","Nordsjøen, Norskehavet og Barentshavet",first.nord&&first.norske&&first.barents?[first.nord,first.norske,first.barents].sort()[2]:null,["nord","norske","barents"].filter(k=>first[k]).length,3);
   add("polar","hav","66°","Polarsirkelen","Opphold nord for polarsirkelen",polar);
+  // første tur og stamgjest (mange døgn på samme installasjon)
+  if(st.length)add("t1","tur","1","Første tur","Første opphold offshore i loggen",st[0].start);
+  {let cumK={},best=0;const atK={};for(const s of st){const k=s.key,b=cumK[k]||0,c=b+days(s);cumK[k]=c;if(c>best)best=c;for(const t of [100,500])if(b<t&&c>=t&&!atK[t])atK[t]=addDays(s.start,Math.min(t-b,s.days||0))}
+    for(const t of [100,500])add("s"+t,"tur","★",t===100?"Stamgjest":"Fast inventar",`${t} døgn på samme installasjon`,atK[t],Math.min(best,t),t)}
   // turer og steder
-  const long=st.find(s=>s.days>=21);add("lang","tur","21","21 døgn i strekk","Ett opphold på minst 21 døgn",long&&long.start);
+  const long=st.find(s=>s.days>=21);add("lang","tur","21","21 døgn i strekk","Første gang du sto tre uker offshore",long&&long.start);
   const tb=stays.filter(s=>s.turnback).sort((a,b)=>a.start<b.start?-1:1)[0];add("snudd","tur","↺","Helikopteret snudde","Helikopteret måtte snu før landing",tb&&tb.start);
   const flo=st.find(s=>(s.segs||[]).some(g=>g.flotel));add("flotell","tur","F","Flotell","Bodde på en flotell",flo&&flo.start);
   const seen=[],rigs=[];let i5=null,i10=null,r3=null;
@@ -737,7 +741,7 @@ function badges({stays,legs,days=s=>s.days}){
   if(st.length){const a=st[0].start,z=st.reduce((m,s)=>(s.end||s.start)>m?(s.end||s.start):m,a),span=(toDay(z)-toDay(a))/365.25;
     for(const n of [5,10,20,30,40])add("y"+n,"år",n+"år",`${n} år på sokkelen`,`${n} år siden første tur`,span>=n?addDays(a,Math.round(n*365.25)):null,Math.min(Math.floor(span),n),n)}
   // Serier trappes opp: bare neste trinn vises før det er nådd. Overraskelser vises ikke før de er oppnådd.
-  const SERIES=[[/^d\d/,"døgn"],[/^f\d/,"fly"],[/^y\d/,"år"],[/^i\d/,"innr"]];
+  const SERIES=[[/^d\d/,"døgn"],[/^f\d/,"fly"],[/^y\d/,"år"],[/^i\d/,"innr"],[/^s\d/,"stam"]];
   for(const b of B){const m=SERIES.find(x=>x[0].test(b.id));if(m)b.series=m[1];if(b.id==="snudd")b.secret=true}
   return B;
 }
