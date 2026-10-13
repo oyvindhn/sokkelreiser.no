@@ -735,8 +735,22 @@ function badges({stays,legs,days=s=>s.days}){
   add("r3","tur","R3","Tre rigger","Vært på tre ulike flyttbare rigger",r3,Math.min(rigs.length,3),3);
   // år på sokkelen
   if(st.length){const a=st[0].start,z=st.reduce((m,s)=>(s.end||s.start)>m?(s.end||s.start):m,a),span=(toDay(z)-toDay(a))/365.25;
-    for(const n of [5,10,20])add("y"+n,"år",n+"år",`${n} år på sokkelen`,`${n} år siden første tur`,span>=n?addDays(a,Math.round(n*365.25)):null,Math.min(Math.floor(span),n),n)}
+    for(const n of [5,10,20,30,40])add("y"+n,"år",n+"år",`${n} år på sokkelen`,`${n} år siden første tur`,span>=n?addDays(a,Math.round(n*365.25)):null,Math.min(Math.floor(span),n),n)}
+  // Serier trappes opp: bare neste trinn vises før det er nådd. Overraskelser vises ikke før de er oppnådd.
+  const SERIES=[[/^d\d/,"døgn"],[/^f\d/,"fly"],[/^y\d/,"år"],[/^i\d/,"innr"]];
+  for(const b of B){const m=SERIES.find(x=>x[0].test(b.id));if(m)b.series=m[1];if(b.id==="snudd")b.secret=true}
   return B;
+}
+/* Hvilke merker som vises: oppnådde, første ikke-oppnådde i hver serie, og vanlige mål. Resten telles som skjulte. */
+function visibleBadges(all){
+  const nextOf={};const shown=[];let hidden=0;
+  for(const b of all){
+    if(b.date){shown.push(b);continue}
+    if(b.secret){hidden++;continue}
+    if(b.series){if(nextOf[b.series]){hidden++;continue}nextOf[b.series]=true}
+    shown.push(b);
+  }
+  return {shown,hidden};
 }
 
 /* ---------- export ---------- */
@@ -747,6 +761,6 @@ function toCSV(rows,delim=";"){
 const api={minutesOf,isFlyable,SHELF_BASES,reachable,flotelPeriods,flotelCandidates,DAY,pad,isoFromDate,toDay,fromDay,addDays,diffDays,todayIso,parseDate,fmtDate,clean,normName,tokens,nameScore,parseCSV,readXlsx,
   FIELDS,findHeaderRow,guessColumns,analyseTables,buildLegs,placeKey,derivePlaces,buildStays,normFacility,normWellbore,rowsToObjects,
   buildIdf,idfScore,codeScore,fmtTime,haversineKm,rigTimeline,locateOnRig,nameAt,nameHistory,registryName,normFacHist,histRowAt,histNames,fieldWord,discoveryName,shortOperator,prospectFromHistory,nameSite,titleCase,toCSV,isSodirWellbore,isSodirFacility,
-  activityByFacility,dateFit,easterSunday,holidaysOffshore,badges,seaOf,neighbours,pickAuto,heliport,flightHints,flightFit};
+  activityByFacility,dateFit,easterSunday,holidaysOffshore,badges,visibleBadges,seaOf,neighbours,pickAuto,heliport,flightHints,flightFit};
 if(typeof module!=="undefined"&&module.exports)module.exports=api;else root.OK=api;
 })(typeof window!=="undefined"?window:globalThis);

@@ -1587,13 +1587,14 @@ function holidaysHtml(y){
 }
 function badgesHtml(y){
   const all=C.badges({stays:STAYS,legs:S.legs,days:countDays});
+  const {shown,hidden}=C.visibleBadges(all);
   const got=all.filter(b=>b.date),isNew=b=>y&&b.date&&+b.date.slice(0,4)===y;
-  const order=[...all].sort((a,b)=>(isNew(b)-isNew(a))||(!!b.date-!!a.date)||((a.date||"")<(b.date||"")?-1:1));
+  const order=[...shown].sort((a,b)=>(isNew(b)-isNew(a))||(!!b.date-!!a.date)||((a.date||"")<(b.date||"")?-1:1));
   const nNew=got.filter(isNew).length;
-  return `<div><p class="eyebrow"><span>Merker</span><span style="text-transform:none;letter-spacing:0">${got.length} av ${all.length}${y&&nNew?` · ${nNew} nye i ${y}`:""}</span></p>
+  return `<div><p class="eyebrow"><span>Merker</span><span style="text-transform:none;letter-spacing:0">${got.length} oppnådd${y&&nNew?` · ${nNew} nye i ${y}`:""}</span></p>
     <div class="badges">${order.map(b=>{
       const prog=!b.date&&b.need?`<i class="bprog"><b style="width:${Math.round(100*b.have/b.need)}%"></b></i><small>${nf(b.have)} av ${nf(b.need)}</small>`:"";
-      return `<div class="badge${b.date?" on":""}${isNew(b)?" new":""}" title="${h(b.desc)}"><span class="bsym">${h(b.sym)}</span><span class="blab">${h(b.label)}</span>${b.date?`<small>${isNew(b)?"Nytt · ":""}${fmtMonth(b.date)}</small>`:prog||`<small>${h(b.desc)}</small>`}</div>`}).join("")}</div></div>`;
+      return `<div class="badge${b.date?" on":""}${isNew(b)?" new":""}" title="${h(b.desc)}"><span class="bsym">${h(b.sym)}</span><span class="blab">${h(b.label)}</span>${b.date?`<small>${isNew(b)?"Nytt · ":""}${fmtMonth(b.date)}</small>`:prog||`<small>${h(b.desc)}</small>`}</div>`}).join("")}${hidden?`<div class="badge secret" title="Dukker opp når du har nådd dem"><span class="bsym">?</span><span class="blab">${hidden} ${plural(hidden,"skjult merke","skjulte merker")}</span><small>Dukker opp når du når dem</small></div>`:""}</div></div>`;
 }
 /* Fanen «Oppsummering»: velg hele karrieren eller et år, se kortet, del det. Året er det samme som i «Mine opphold» og kartet. */
 let WRAP_KEY="";

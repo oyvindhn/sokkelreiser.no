@@ -369,6 +369,7 @@ dialog::backdrop{background:rgba(10,20,28,.45)}
 .badge small{font-size:10.5px;color:var(--muted);line-height:1.25}
 .badge.on{opacity:1;background:var(--panel-2)}
 .badge.on .bsym{border:0;background:var(--accent);color:var(--accent-ink);box-shadow:0 0 0 4px var(--accent-soft)}
+.badge.secret{border-style:dashed;opacity:.5}
 .badge.new{border-color:var(--accent)}
 .badge.new small{color:var(--accent);font-weight:650}
 .bprog{display:block;width:70%;height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin-top:2px}
