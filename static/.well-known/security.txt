@@ -1,0 +1,4 @@
+Contact: https://github.com/oyvindhn/sokkelreiser.no/issues
+Expires: 2027-10-15T00:00:00.000Z
+Preferred-Languages: no, en
+Canonical: https://sokkelreiser.no/.well-known/security.txt

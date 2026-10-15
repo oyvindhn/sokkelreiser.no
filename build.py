@@ -28,11 +28,18 @@ def parts(favicon=True):
     basemap += "window.RIGGNAVN=" + json.dumps(rn, ensure_ascii=False, separators=(",", ":")) + ";"
     basemap += "window.FLOTELLER=" + json.dumps(flot, ensure_ascii=False, separators=(",", ":")) + ";"
     icon = '<link rel="icon" href="favicon.svg" type="image/svg+xml">\n' if favicon else ""
-    head = f"""<title>Sokkelreiser</title>
-<meta name="description" content="Finn tilbake til hvor du har vært offshore. Reiselogg fra MinDaVinci, posisjoner fra Sodir. Alt skjer i nettleseren.">
-<meta property="og:title" content="Sokkelreiser">
-<meta property="og:description" content="Finn tilbake til hvor du har vært offshore. Alt skjer i nettleseren.">
+    head = f"""<title>Sokkelreiser – kart og reiselogg for offshorereiser på norsk sokkel</title>
+<meta name="description" content="Gratis verktøy for å se tilbake på egne reiser til installasjoner på norsk sokkel. Last inn din egen reiselogg, så vises stedene på et kart. Alt skjer i nettleseren, uten pålogging og uten opplasting.">
+<meta name="application-name" content="Sokkelreiser">
+<meta name="robots" content="index,follow">
+<link rel="canonical" href="https://sokkelreiser.no/">
+<meta property="og:site_name" content="Sokkelreiser">
+<meta property="og:title" content="Sokkelreiser – kart og reiselogg for offshorereiser">
+<meta property="og:description" content="Se tilbake på egne reiser til installasjoner på norsk sokkel. Alt skjer i nettleseren, uten pålogging og uten opplasting.">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://sokkelreiser.no/">
+<meta property="og:locale" content="nb_NO">
+<script type="application/ld+json">{{"@context":"https://schema.org","@type":"WebApplication","name":"Sokkelreiser","url":"https://sokkelreiser.no/","description":"Gratis personlig verktøy som viser egne reiser til installasjoner på norsk sokkel på et kart. Data behandles lokalt i nettleseren.","applicationCategory":"TravelApplication","operatingSystem":"Any","inLanguage":"nb","isAccessibleForFree":true,"offers":{{"@type":"Offer","price":"0","priceCurrency":"NOK"}}}}</script>
 <meta name="theme-color" content="#0e1c26">
 <script>/* valgt tema før første tegning, så siden ikke blinker */try{{var t=JSON.parse(localStorage.getItem("sokkelreise:theme"));if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}}catch(e){{}}</script>
 {icon}<link rel="preconnect" href="https://fonts.googleapis.com">
